@@ -8,9 +8,9 @@ export default function PublicLayout({
   children: React.ReactNode
 }>) {
   return (
-    <div>
+    <div className="flex min-h-full flex-1 flex-col">
       <Navbar />
-      {children}
+      <main className="flex-1">{children}</main>
       <Footer />
     </div>
   )

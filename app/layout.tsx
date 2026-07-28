@@ -3,6 +3,7 @@ import {
   Archivo_Black,
   Geist,
   Geist_Mono,
+  IBM_Plex_Mono,
   Instrument_Sans,
   JetBrains_Mono,
 } from "next/font/google";
@@ -35,6 +36,12 @@ const jetbrainsMono = JetBrains_Mono({
   variable: "--font-dispatch-mono",
 });
 
+const ibmPlexMono = IBM_Plex_Mono({
+  weight: ["400", "500", "600"],
+  subsets: ["latin"],
+  variable: "--font-hivis-mono",
+});
+
 export const metadata: Metadata = {
   title: "FixItNow",
   description: "Book verified home technicians in Dhaka on fixed time slots",
@@ -48,7 +55,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${archivoBlack.variable} ${instrumentSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${archivoBlack.variable} ${instrumentSans.variable} ${jetbrainsMono.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
