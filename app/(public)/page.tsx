@@ -1,7 +1,6 @@
-import React from 'react'
+import HeroBanner from "../components/Home/HeroBanner/HeroBanner"
 
 export default function HomePage() {
-  return (
-    <div>HomePage</div>
-  )
+  return <HeroBanner />
 }
+ 
