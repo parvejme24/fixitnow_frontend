@@ -1,0 +1,396 @@
+@keyframes fs-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.fs-section {
+  --ink: #0e141b;
+  --steel-800: #1b2631;
+  --steel-400: #6e8091;
+  --steel-200: #c5ced6;
+  --steel-100: #e2e8ed;
+  --concrete: #edf1f4;
+  --white: #ffffff;
+  --hivis: #ffc93c;
+  --hivis-soft: #fff3d0;
+  --hivis-deep: #e5a900;
+  --badge-text: #8a6400;
+  --sh-1: 0 10px 28px rgba(14, 20, 27, 0.07);
+  --sh-2: 0 18px 40px rgba(14, 20, 27, 0.12);
+  --r-sm: 6px;
+  --r-lg: 16px;
+  --ease: cubic-bezier(0.22, 0.68, 0.32, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --mid: 0.34s;
+  --slow: 0.62s;
+  --gutter: 24px;
+  background: var(--concrete);
+  color: var(--ink);
+  padding-block: clamp(56px, 8vw, 104px);
+  font-family: var(--font-dispatch-sans), system-ui, sans-serif;
+}
+
+.fs-wrap {
+  width: min(1240px, calc(100% - (var(--gutter) * 2)));
+  margin-inline: auto;
+}
+
+.fs-section .section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 34px;
+}
+
+.fs-eyebrow {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-hivis-mono), monospace;
+  font-size: 0.69rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--steel-400);
+}
+
+.fs-eyebrow::before {
+  content: "";
+  width: 22px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--hivis);
+  flex-shrink: 0;
+}
+
+.fs-section .display-lg {
+  margin: 16px 0 0;
+  font-family: var(--font-dispatch-display), sans-serif;
+  font-size: clamp(2.2rem, 4.6vw, 3.5rem);
+  font-weight: 800;
+  letter-spacing: -0.038em;
+  line-height: 1.02;
+  color: var(--ink);
+  text-transform: uppercase;
+}
+
+.fs-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 22px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--steel-200);
+  font-family: var(--font-dispatch-display), sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition:
+    background var(--mid) var(--ease),
+    box-shadow var(--mid) var(--ease),
+    transform var(--mid) var(--ease);
+}
+
+.fs-ghost:hover {
+  background: var(--white);
+  box-shadow:
+    inset 0 0 0 2px var(--ink),
+    var(--sh-1);
+  transform: translateY(-2px);
+}
+
+.fs-section .grid.grid-auto {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(258px, 100%), 1fr));
+  gap: 22px;
+}
+
+/* —— Skeleton —— */
+.sk-card {
+  overflow: hidden;
+  background: var(--white);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-1);
+}
+
+.sk-media,
+.sk-line {
+  background: linear-gradient(
+    90deg,
+    var(--steel-100) 20%,
+    #fff 50%,
+    var(--steel-100) 80%
+  );
+  background-size: 200% 100%;
+  animation: fs-shimmer 1.35s linear infinite;
+}
+
+.sk-media {
+  aspect-ratio: 16 / 10;
+}
+
+.sk-body {
+  padding: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.sk-line {
+  height: 11px;
+  border-radius: 4px;
+}
+
+/* —— Service card —— */
+.fs-section .svc-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--white);
+  border-radius: var(--r-lg);
+  box-shadow: var(--sh-1);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    transform var(--mid) var(--ease),
+    box-shadow var(--mid) var(--ease);
+}
+
+.fs-section .svc-card:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--sh-2);
+}
+
+.fs-section .svc-card[data-reveal] {
+  opacity: 0;
+  transform: translateY(26px);
+  transition:
+    opacity 0.72s var(--ease-out),
+    transform 0.72s var(--ease-out),
+    box-shadow var(--mid) var(--ease);
+}
+
+.fs-section .svc-card[data-reveal].is-in {
+  opacity: 1;
+  transform: none;
+}
+
+.fs-section .svc-card[data-reveal].is-in:hover {
+  transform: translateY(-5px);
+}
+
+.fs-section .svc-card__media {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--steel-800);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+}
+
+.fs-section .svc-card__media::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background-image:
+    linear-gradient(rgba(154, 171, 184, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(154, 171, 184, 0.22) 1px, transparent 1px);
+  background-size: 22px 22px;
+  opacity: 0.5;
+  transition: transform var(--slow) var(--ease-out);
+}
+
+.fs-section .svc-card:hover .svc-card__media::before {
+  transform: scale(1.14) rotate(2deg);
+}
+
+.fs-section .svc-card__glyph {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  color: var(--hivis);
+  transition: transform var(--slow) var(--ease-out);
+}
+
+.fs-section .svc-card:hover .svc-card__glyph {
+  transform: translateY(-5px) scale(1.08);
+}
+
+.fs-section .badge--hivis {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--hivis-soft);
+  color: var(--badge-text);
+  font-family: var(--font-hivis-mono), monospace;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.fs-section .badge--hivis i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.fs-section .svc-card__price {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  padding: 6px 11px;
+  border-radius: var(--r-sm);
+  background: var(--hivis);
+  color: var(--ink);
+  font-family: var(--font-hivis-mono), monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.fs-section .svc-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 18px;
+  flex: 1;
+}
+
+.fs-section .svc-card__cat {
+  margin: 0;
+  font-family: var(--font-hivis-mono), monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--steel-400);
+}
+
+.fs-section .svc-card__title {
+  margin: 0;
+  font-family: var(--font-dispatch-display), sans-serif;
+  font-size: 1.06rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.2;
+}
+
+.fs-section .svc-card__desc {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--steel-400);
+  flex: 1;
+}
+
+.fs-section .svc-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 13px;
+  border-top: 1px solid var(--steel-100);
+}
+
+.fs-section .svc-card__rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fs-stars {
+  display: inline-flex;
+  gap: 1px;
+  color: var(--steel-100);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+.fs-stars .is-on {
+  color: var(--hivis-deep);
+}
+
+.fs-section .svc-card__rating b {
+  font-family: var(--font-hivis-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.fs-section .svc-card__rating em {
+  font-style: normal;
+  font-family: var(--font-hivis-mono), monospace;
+  font-size: 0.72rem;
+  color: var(--steel-400);
+}
+
+.fs-section .svc-card__dur {
+  font-family: var(--font-hivis-mono), monospace;
+  font-size: 0.75rem;
+  color: var(--steel-400);
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .fs-section {
+    --gutter: 18px;
+  }
+
+  .fs-section .section-head {
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk-media,
+  .sk-line {
+    animation: none;
+    background: var(--steel-100);
+  }
+
+  .fs-section .svc-card[data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .fs-ghost,
+  .fs-section .svc-card,
+  .fs-section .svc-card__media::before,
+  .fs-section .svc-card__glyph {
+    transition: none;
+  }
+
+  .fs-ghost:hover,
+  .fs-section .svc-card:hover,
+  .fs-section .svc-card[data-reveal].is-in:hover,
+  .fs-section .svc-card:hover .svc-card__media::before,
+  .fs-section .svc-card:hover .svc-card__glyph {
+    transform: none;
+  }
+}
