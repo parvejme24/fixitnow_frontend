@@ -1,7 +1,16 @@
-import React from 'react'
+import type { Metadata } from "next"
+import { Suspense } from "react"
 
-export default function ServicePage() {
+import BrowseServices from "../../components/Services/BrowseServices/BrowseServices"
+
+export const metadata: Metadata = {
+  title: "Browse services — FixItNow",
+}
+
+export default function ServicesPage() {
   return (
-    <div>ServicePage</div>
+    <Suspense fallback={<div className="browse-page" style={{ minHeight: "50vh" }} />}>
+      <BrowseServices />
+    </Suspense>
   )
 }

@@ -80,7 +80,12 @@ function ForgotForm() {
   return (
     <>
       <p className="auth-eyebrow auth-eyebrow--light">Account recovery</p>
-      <h1 className="auth-display-md">Forgot password</h1>
+      <h1 className="auth-display-md">
+        Forgot password ·{" "}
+        <Link href="/" className="auth-brand-inline">
+          Fix<span>It</span>Now
+        </Link>
+      </h1>
       <p className="auth-sub">
         Remembered it? <Link href="/auth/login">Back to log in</Link>
       </p>

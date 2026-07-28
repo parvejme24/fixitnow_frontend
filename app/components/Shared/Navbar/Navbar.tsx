@@ -17,6 +17,13 @@ const navLinks = [
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/"
+  if (href === "/technicians") {
+    return (
+      pathname === "/technicians" ||
+      pathname.startsWith("/technicians/") ||
+      pathname === "/technician"
+    )
+  }
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 

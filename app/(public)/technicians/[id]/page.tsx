@@ -1,7 +1,12 @@
-import React from 'react'
+import { redirect } from "next/navigation"
 
-export default function TechnicianDetailPage() {
-  return (
-    <div>TechnicianDetailPage</div>
-  )
+type Params = Promise<{ id: string }>
+
+export default async function TechnicianIdRedirect({
+  params,
+}: {
+  params: Params
+}) {
+  const { id } = await params
+  redirect(`/technician?id=${encodeURIComponent(id)}`)
 }

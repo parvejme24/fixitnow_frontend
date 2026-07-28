@@ -158,7 +158,12 @@ function LoginForm() {
   return (
     <>
       <p className="auth-eyebrow auth-eyebrow--light">Sign in</p>
-      <h1 className="auth-display-md">Log in to FixItNow</h1>
+      <h1 className="auth-display-md">
+        Log in to{" "}
+        <Link href="/" className="auth-brand-inline">
+          Fix<span>It</span>Now
+        </Link>
+      </h1>
       <p className="auth-sub">
         New here? <Link href="/auth/register">Create an account</Link>
       </p>

@@ -264,7 +264,12 @@ function RegisterForm({
   return (
     <>
       <p className="auth-eyebrow auth-eyebrow--light">Create account</p>
-      <h1 className="auth-display-md">Join FixItNow</h1>
+      <h1 className="auth-display-md">
+        Join{" "}
+        <Link href="/" className="auth-brand-inline">
+          Fix<span>It</span>Now
+        </Link>
+      </h1>
       <p className="auth-sub">
         Already registered? <Link href="/auth/login">Log in instead</Link>
       </p>
