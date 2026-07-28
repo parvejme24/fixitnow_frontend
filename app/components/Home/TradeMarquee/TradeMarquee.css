@@ -1,0 +1,29 @@
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee {
+  overflow: hidden;
+  background: #0e141b;
+  padding-block: 13px;
+}
+
+.marquee__track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 44px;
+  animation: marquee 34s linear infinite;
+}
+
+.marquee:hover .marquee__track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee__track {
+    animation: none;
+  }
+}
