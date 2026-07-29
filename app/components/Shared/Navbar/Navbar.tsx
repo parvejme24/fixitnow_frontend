@@ -1,11 +1,29 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useId, useState } from "react"
-import { ArrowRightIcon } from "lucide-react"
+import {
+  ArrowRightIcon,
+  CalendarDaysIcon,
+  KeyRoundIcon,
+  LayoutDashboardIcon,
+  LogOutIcon,
+  WrenchIcon,
+} from "lucide-react"
 
 import BrandLogo from "@/app/components/Shared/BrandLogo"
+import { useAuth } from "@/app/providers/AuthProvider"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import type { AuthRole, AuthUser } from "@/lib/auth/types"
+import { initialsFromName } from "@/lib/auth/types"
 import { cn } from "@/lib/utils"
 
 const navLinks = [
@@ -14,6 +32,33 @@ const navLinks = [
   { label: "Technicians", href: "/technicians" },
   { label: "My bookings", href: "/bookings" },
 ] as const
+
+function dashboardLinksForRole(role: AuthRole) {
+  if (role === "TECHNICIAN") {
+    return [
+      {
+        label: "Technician dashboard",
+        href: "/technicians",
+        icon: LayoutDashboardIcon,
+      },
+      { label: "My bookings", href: "/bookings", icon: CalendarDaysIcon },
+      { label: "Browse services", href: "/services", icon: WrenchIcon },
+    ]
+  }
+  if (role === "ADMIN") {
+    return [
+      { label: "Admin home", href: "/", icon: LayoutDashboardIcon },
+      { label: "Browse services", href: "/services", icon: WrenchIcon },
+      { label: "Technicians", href: "/technicians", icon: WrenchIcon },
+      { label: "Bookings", href: "/bookings", icon: CalendarDaysIcon },
+    ]
+  }
+  return [
+    { label: "My bookings", href: "/bookings", icon: LayoutDashboardIcon },
+    { label: "Browse services", href: "/services", icon: WrenchIcon },
+    { label: "Technicians", href: "/technicians", icon: WrenchIcon },
+  ]
+}
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/"
@@ -52,6 +97,195 @@ function BurgerIcon({ open }: { open: boolean }) {
   )
 }
 
+function UserAvatarButton({
+  user,
+  className,
+}: {
+  user: AuthUser
+  className?: string
+}) {
+  const initials = user.initials || initialsFromName(user.name)
+
+  return (
+    <Avatar
+      className={cn(
+        "size-9 rounded-full bg-[#FFC93C] after:border-[#FFC93C]/40",
+        className
+      )}
+    >
+      <AvatarFallback className="bg-[#FFC93C] text-[0.75rem] font-bold tracking-wide text-[#0E141B]">
+        {initials}
+      </AvatarFallback>
+    </Avatar>
+  )
+}
+
+function UserMenu({ user }: { user: AuthUser }) {
+  const router = useRouter()
+  const { logout } = useAuth()
+  const [busy, setBusy] = useState(false)
+  const links = dashboardLinksForRole(user.role)
+
+  const handleLogout = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      await logout()
+      router.push("/")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className="inline-flex cursor-pointer rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B]"
+        aria-label="Open account menu"
+      >
+        <UserAvatarButton
+          user={user}
+          className="transition-transform duration-200 hover:scale-[1.04] active:scale-95"
+        />
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        align="end"
+        sideOffset={10}
+        className="z-[120] w-64 min-w-64 rounded-[12px] border border-[#1C2733] bg-[#131B24] p-1.5 text-white shadow-[0_16px_40px_rgba(0,0,0,0.45)] ring-0"
+        style={{ fontFamily: "var(--font-dispatch-sans), sans-serif" }}
+      >
+        <div className="px-2.5 py-2.5">
+          <p className="truncate text-sm font-semibold text-white">
+            {user.name}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-[#9AABB8]">{user.email}</p>
+          <p className="mt-1.5 text-[0.65rem] font-medium tracking-wide text-[#FFC93C] uppercase">
+            {user.role.toLowerCase()}
+          </p>
+        </div>
+
+        <DropdownMenuSeparator className="mx-1 bg-[#1C2733]" />
+
+        {links.map((link) => {
+          const Icon = link.icon
+          return (
+            <DropdownMenuItem
+              key={link.href + link.label}
+              className="cursor-pointer rounded-[8px] px-2.5 py-2 text-sm text-[#D5DEE5] focus:bg-white/8 focus:text-white"
+              onClick={() => router.push(link.href)}
+            >
+              <Icon className="size-4 text-[#9AABB8]" />
+              {link.label}
+            </DropdownMenuItem>
+          )
+        })}
+
+        <DropdownMenuItem
+          className="cursor-pointer rounded-[8px] px-2.5 py-2 text-sm text-[#D5DEE5] focus:bg-white/8 focus:text-white"
+          onClick={() => router.push("/auth/change-password")}
+        >
+          <KeyRoundIcon className="size-4 text-[#9AABB8]" />
+          Change password
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator className="mx-1 bg-[#1C2733]" />
+
+        <DropdownMenuItem
+          disabled={busy}
+          className="cursor-pointer rounded-[8px] px-2.5 py-2 text-sm text-[#FF8A7A] focus:bg-[#FF8A7A]/10 focus:text-[#FF8A7A]"
+          onClick={handleLogout}
+        >
+          <LogOutIcon className="size-4" />
+          {busy ? "Signing out…" : "Log out"}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function GuestActions({
+  mobile = false,
+  onNavigate,
+}: {
+  mobile?: boolean
+  onNavigate?: () => void
+}) {
+  if (mobile) {
+    return (
+      <div className="flex flex-col gap-2.5 pt-5 pb-3">
+        <Link
+          href="/auth/login"
+          onClick={onNavigate}
+          className="inline-flex h-11 cursor-pointer items-center justify-center rounded-[9px] border border-[#4A5C6A] text-sm font-medium text-white transition-colors hover:border-[#9AABB8] hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#131B24]"
+        >
+          Log in
+        </Link>
+        <Link
+          href="/auth/register"
+          onClick={onNavigate}
+          className="group/cta inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[9px] bg-[#FFC93C] text-sm font-semibold text-[#0E141B] transition-colors hover:bg-[#FFD45C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#131B24]"
+        >
+          Get started
+          <ArrowRightIcon className="size-4 transition-transform duration-300 ease-out motion-safe:group-hover/cta:translate-x-0.5 motion-reduce:transition-none" />
+        </Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ml-2 flex items-center gap-2.5">
+      <Link
+        href="/auth/login"
+        className="inline-flex h-9 cursor-pointer items-center justify-center rounded-[9px] border border-[#4A5C6A] bg-transparent px-4 text-sm font-medium text-white transition-colors hover:border-[#9AABB8] hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B]"
+      >
+        Log in
+      </Link>
+      <Link
+        href="/auth/register"
+        className="group/cta inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-[9px] bg-[#FFC93C] px-4 text-sm font-semibold text-[#0E141B] transition-colors hover:bg-[#FFD45C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B]"
+      >
+        Get started
+        <ArrowRightIcon className="size-3.5 transition-transform duration-300 ease-out motion-safe:group-hover/cta:translate-x-0.5 motion-reduce:transition-none" />
+      </Link>
+    </div>
+  )
+}
+
+function AuthSlot({
+  mobile = false,
+  onNavigate,
+}: {
+  mobile?: boolean
+  onNavigate?: () => void
+}) {
+  const { user, isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <span
+        className={cn(
+          "inline-block size-9 animate-pulse rounded-full bg-[#1C2733]",
+          mobile ? "hidden" : "ml-2"
+        )}
+        aria-hidden
+      />
+    )
+  }
+
+  if (isAuthenticated && user) {
+    // Mobile sheet: account lives on the avatar in the header bar
+    if (mobile) return null
+    return (
+      <div className="ml-2">
+        <UserMenu user={user} />
+      </div>
+    )
+  }
+
+  return <GuestActions mobile={mobile} onNavigate={onNavigate} />
+}
+
 export default function Navbar() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
@@ -59,7 +293,6 @@ export default function Navbar() {
   const [lastPathname, setLastPathname] = useState(pathname)
   const menuId = useId()
 
-  // Close mobile menu when the route changes (React-recommended render sync)
   if (pathname !== lastPathname) {
     setLastPathname(pathname)
     setOpen(false)
@@ -93,11 +326,7 @@ export default function Navbar() {
         elevated && "shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
       )}
     >
-      {/* Hi-vis hazard stripe — top edge only */}
-      <div
-        className="h-[3px] w-full bg-[#FFC93C]"
-        aria-hidden
-      />
+      <div className="h-[3px] w-full bg-[#FFC93C]" aria-hidden />
 
       <div className="relative z-[102] mx-auto flex h-[68px] w-full max-w-[1240px] items-center gap-4 bg-[#0E141B] px-4 sm:px-6">
         <BrandLogo onNavigate={() => setOpen(false)} showTag />
@@ -115,7 +344,7 @@ export default function Navbar() {
                   href={link.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative px-3 py-2 text-[0.9375rem] font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B]",
+                    "relative cursor-pointer px-3 py-2 text-[0.9375rem] font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B]",
                     active
                       ? "text-white"
                       : "text-[#9AABB8] hover:text-[#D5DEE5]"
@@ -134,36 +363,24 @@ export default function Navbar() {
             })}
           </nav>
 
-          <div className="ml-2 flex items-center gap-2.5">
-            <Link
-              href="/auth/login"
-              className="inline-flex h-9 items-center justify-center rounded-[9px] border border-[#4A5C6A] bg-transparent px-4 text-sm font-medium text-white transition-colors hover:border-[#9AABB8] hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B]"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/auth/register"
-              className="group/cta inline-flex h-9 items-center justify-center gap-1.5 rounded-[9px] bg-[#FFC93C] px-4 text-sm font-semibold text-[#0E141B] transition-colors hover:bg-[#FFD45C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B]"
-            >
-              Get started
-              <ArrowRightIcon className="size-3.5 transition-transform duration-300 ease-out motion-safe:group-hover/cta:translate-x-0.5 motion-reduce:transition-none" />
-            </Link>
-          </div>
+          <AuthSlot />
         </div>
 
-        <button
-          type="button"
-          className="ml-auto inline-flex size-10 items-center justify-center rounded-[9px] text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B] lg:hidden"
-          aria-label={open ? "Close menu" : "Open menu"}
-          aria-expanded={open}
-          aria-controls={menuId}
-          onClick={() => setOpen((v) => !v)}
-        >
-          <BurgerIcon open={open} />
-        </button>
+        <div className="ml-auto flex items-center gap-1.5 lg:hidden">
+          <MobileUserAvatar />
+          <button
+            type="button"
+            className="inline-flex size-10 cursor-pointer items-center justify-center rounded-[9px] text-white transition-colors hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0E141B]"
+            aria-label={open ? "Close menu" : "Open menu"}
+            aria-expanded={open}
+            aria-controls={menuId}
+            onClick={() => setOpen((v) => !v)}
+          >
+            <BurgerIcon open={open} />
+          </button>
+        </div>
       </div>
 
-      {/* Backdrop — covers page, does not push layout */}
       <div
         className={cn(
           "fixed inset-0 top-[71px] z-[90] bg-black/45 transition-opacity duration-300 ease-out motion-reduce:transition-none lg:hidden",
@@ -175,7 +392,6 @@ export default function Navbar() {
         onClick={() => setOpen(false)}
       />
 
-      {/* Mobile menu overlay — absolute so page content stays put */}
       <div
         id={menuId}
         className={cn(
@@ -201,7 +417,7 @@ export default function Navbar() {
                 tabIndex={open ? undefined : -1}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "border-b border-[#1C2733] py-3.5 text-lg font-semibold transition-colors last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-inset",
+                  "cursor-pointer border-b border-[#1C2733] py-3.5 text-lg font-semibold transition-colors last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-inset",
                   active ? "text-white" : "text-[#9AABB8] hover:text-white"
                 )}
               >
@@ -217,27 +433,26 @@ export default function Navbar() {
             )
           })}
 
-          <div className="flex flex-col gap-2.5 pt-5 pb-3">
-            <Link
-              href="/auth/login"
-              onClick={() => setOpen(false)}
-              tabIndex={open ? undefined : -1}
-              className="inline-flex h-11 items-center justify-center rounded-[9px] border border-[#4A5C6A] text-sm font-medium text-white transition-colors hover:border-[#9AABB8] hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#131B24]"
-            >
-              Log in
-            </Link>
-            <Link
-              href="/auth/register"
-              onClick={() => setOpen(false)}
-              tabIndex={open ? undefined : -1}
-              className="group/cta inline-flex h-11 items-center justify-center gap-2 rounded-[9px] bg-[#FFC93C] text-sm font-semibold text-[#0E141B] transition-colors hover:bg-[#FFD45C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFC93C] focus-visible:ring-offset-2 focus-visible:ring-offset-[#131B24]"
-            >
-              Get started
-              <ArrowRightIcon className="size-4 transition-transform duration-300 ease-out motion-safe:group-hover/cta:translate-x-0.5 motion-reduce:transition-none" />
-            </Link>
-          </div>
+          <AuthSlot mobile onNavigate={() => setOpen(false)} />
         </nav>
       </div>
     </header>
   )
+}
+
+function MobileUserAvatar() {
+  const { user, isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <span
+        className="inline-block size-9 animate-pulse rounded-full bg-[#1C2733]"
+        aria-hidden
+      />
+    )
+  }
+
+  if (!isAuthenticated || !user) return null
+
+  return <UserMenu user={user} />
 }

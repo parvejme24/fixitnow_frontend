@@ -1,0 +1,81 @@
+export type AuthRole = "CUSTOMER" | "TECHNICIAN" | "ADMIN"
+
+export type AuthUser = {
+  id: string
+  name: string
+  email: string
+  phone?: string | null
+  role: AuthRole
+  initials?: string | null
+  isActive?: boolean
+  createdAt?: string
+  updatedAt?: string
+  technicianProfile?: {
+    id: string
+    trade?: string | null
+    visitFee?: number | null
+    online?: boolean
+    verified?: boolean
+  } | null
+}
+
+export type AuthPayload = {
+  user: AuthUser
+  token: string
+}
+
+export type RegisterInput = {
+  name: string
+  email: string
+  phone: string
+  password: string
+  role: AuthRole
+  trade?: string
+  experienceYrs?: number
+  area?: string
+}
+
+export type LoginInput = {
+  email: string
+  password: string
+}
+
+export type UpdateMeInput = {
+  name?: string
+  phone?: string
+  initials?: string
+}
+
+export type ChangePasswordInput = {
+  currentPassword: string
+  newPassword: string
+}
+
+export type ResetPasswordInput = {
+  token: string
+  password: string
+}
+
+export type UiRole = "customer" | "technician" | "admin"
+
+export function toApiRole(role: UiRole): AuthRole {
+  return role.toUpperCase() as AuthRole
+}
+
+export function toUiRole(role: AuthRole): UiRole {
+  return role.toLowerCase() as UiRole
+}
+
+export function dashboardForRole(role: AuthRole | UiRole) {
+  const r = role.toUpperCase()
+  if (r === "TECHNICIAN") return "/technicians"
+  if (r === "ADMIN") return "/"
+  return "/bookings"
+}
+
+export function initialsFromName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return "FN"
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+}

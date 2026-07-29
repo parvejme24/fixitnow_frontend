@@ -4,6 +4,9 @@ import Link from "next/link"
 import { useState } from "react"
 import { AlertCircleIcon, LoaderCircleIcon } from "lucide-react"
 
+import { useAuth } from "@/app/providers/AuthProvider"
+import { getAuthErrorMessage } from "@/lib/auth/errors"
+
 import AuthShell from "../AuthShell/AuthShell"
 import { useAuthToast } from "../Toast/AuthToast"
 
@@ -44,13 +47,14 @@ function ForgotAside() {
 }
 
 function ForgotForm() {
+  const { forgotPassword } = useAuth()
   const { pushToast } = useAuthToast()
   const [email, setEmail] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [sent, setSent] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (loading) return
 
@@ -66,15 +70,26 @@ function ForgotForm() {
     }
 
     setLoading(true)
-    window.setTimeout(() => {
-      setLoading(false)
+    try {
+      await forgotPassword(email.trim())
       setSent(true)
       pushToast({
         kind: "success",
         title: "Check your inbox",
         message: "If that email is registered, a reset link is on the way.",
       })
-    }, 1100)
+    } catch (err) {
+      pushToast({
+        kind: "error",
+        title: "Could not send link",
+        message: getAuthErrorMessage(
+          err,
+          "Something went wrong. Try again in a moment."
+        ),
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (

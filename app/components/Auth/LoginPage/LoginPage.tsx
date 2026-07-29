@@ -1,15 +1,21 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useState } from "react"
+import { useReducedMotion } from "framer-motion"
 import {
   AlertCircleIcon,
   ArrowRightIcon,
   LoaderCircleIcon,
 } from "lucide-react"
 
+import { useAuth } from "@/app/providers/AuthProvider"
+import { dashboardForRole } from "@/lib/auth/types"
+import { getAuthErrorMessage } from "@/lib/auth/errors"
+
 import AuthShell from "../AuthShell/AuthShell"
+import { launchAuthConfetti } from "../launchAuthConfetti"
 import { useAuthToast } from "../Toast/AuthToast"
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -20,21 +26,18 @@ const DEMO_ACCOUNTS = [
     initials: "AS",
     role: "Customer",
     email: "ayesha@mail.com",
-    href: "/bookings",
   },
   {
     name: "Shamim Ahmed",
     initials: "SA",
     role: "Technician",
     email: "shamim@mail.com",
-    href: "/technicians",
   },
   {
     name: "Platform admin",
     initials: "PA",
     role: "Admin",
     email: "admin@fixitnow.bd",
-    href: "/",
   },
 ] as const
 
@@ -93,6 +96,9 @@ function LoginAside() {
 
 function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { login } = useAuth()
+  const reduceMotion = useReducedMotion() ?? false
   const { pushToast } = useAuthToast()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -113,7 +119,7 @@ function LoginForm() {
     return Object.values(next).filter(Boolean).length
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (loading) return
 
@@ -128,16 +134,35 @@ function LoginForm() {
     }
 
     setLoading(true)
-    window.setTimeout(() => {
+    try {
+      const user = await login(
+        { email: email.trim(), password },
+        keepSignedIn
+      )
+      const next = searchParams.get("next")
+      const destination =
+        next && next.startsWith("/") ? next : dashboardForRole(user.role)
+
+      if (!reduceMotion) launchAuthConfetti()
       pushToast({
         kind: "success",
-        title: "Logged in",
-        message: "Welcome back. Opening your dashboard.",
+        title: "Welcome back",
+        message: "You're signed in. Opening your dashboard.",
       })
       window.setTimeout(() => {
-        router.push("/bookings")
-      }, 800)
-    }, 1100)
+        router.push(destination)
+      }, 900)
+    } catch (error) {
+      pushToast({
+        kind: "error",
+        title: "Could not sign in",
+        message: getAuthErrorMessage(
+          error,
+          "Check your email and password, then try again."
+        ),
+      })
+      setLoading(false)
+    }
   }
 
   const handleDemo = (account: (typeof DEMO_ACCOUNTS)[number]) => {
@@ -147,12 +172,9 @@ function LoginForm() {
     setErrors({})
     pushToast({
       kind: "success",
-      title: `Signing in as ${account.role}`,
-      message: account.name,
+      title: "Demo credentials filled",
+      message: `Sign in as ${account.name} when that account exists on the API.`,
     })
-    window.setTimeout(() => {
-      router.push(account.href)
-    }, 900)
   }
 
   return (
@@ -247,7 +269,7 @@ function LoginForm() {
       </form>
 
       <div className="auth-divider">
-        <span>or try a demo role</span>
+        <span>or fill a demo email</span>
       </div>
 
       {DEMO_ACCOUNTS.map((account) => (

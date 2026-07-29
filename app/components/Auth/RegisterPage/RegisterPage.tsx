@@ -13,13 +13,22 @@ import {
   WrenchIcon,
 } from "lucide-react"
 
+import { useAuth } from "@/app/providers/AuthProvider"
+import { getAuthErrorMessage } from "@/lib/auth/errors"
+import {
+  dashboardForRole,
+  toApiRole,
+  type UiRole,
+} from "@/lib/auth/types"
+
 import AuthShell from "../AuthShell/AuthShell"
+import { launchAuthConfetti } from "../launchAuthConfetti"
 import { useAuthToast } from "../Toast/AuthToast"
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^01[3-9]\d{8}$/
 
-type Role = "customer" | "technician" | "admin"
+type Role = UiRole
 
 const PERKS: Record<Role, string[]> = {
   customer: [
@@ -107,27 +116,6 @@ function passwordNote(value: string) {
   return "Strong password."
 }
 
-function launchConfetti() {
-  const colors = [
-    "#FFC93C",
-    "#12B886",
-    "#3D8FE0",
-    "#7C6BFF",
-    "#FF5A3C",
-    "#0E141B",
-  ]
-  for (let i = 0; i < 50; i += 1) {
-    const el = document.createElement("span")
-    el.className = "auth-confetti"
-    el.style.left = `${Math.random() * 100}vw`
-    el.style.background = colors[i % colors.length]
-    el.style.animationDuration = `${2.4 + Math.random() * 1.8}s`
-    el.style.animationDelay = `${Math.random() * 0.7}s`
-    document.body.appendChild(el)
-    window.setTimeout(() => el.remove(), 5000)
-  }
-}
-
 function RegisterAside({ role }: { role: Role }) {
   return (
     <>
@@ -163,6 +151,7 @@ function RegisterForm({
 }) {
   const router = useRouter()
   const reduceMotion = useReducedMotion() ?? false
+  const { register } = useAuth()
   const { pushToast } = useAuthToast()
 
   const [name, setName] = useState("")
@@ -227,13 +216,7 @@ function RegisterForm({
     return Object.values(next).filter(Boolean).length
   }
 
-  const dashboardForRole = (r: Role) => {
-    if (r === "technician") return "/technicians"
-    if (r === "admin") return "/"
-    return "/bookings"
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (loading) return
 
@@ -248,17 +231,42 @@ function RegisterForm({
     }
 
     setLoading(true)
-    window.setTimeout(() => {
-      if (!reduceMotion) launchConfetti()
+    try {
+      const user = await register({
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        password,
+        role: toApiRole(role),
+        ...(role === "technician"
+          ? {
+              trade,
+              experienceYrs: Number(years) || 0,
+              area,
+            }
+          : {}),
+      })
+
+      if (!reduceMotion) launchAuthConfetti()
       pushToast({
         kind: "success",
         title: "Account created",
         message: `Welcome in. Opening your ${ROLE_META[role].label.toLowerCase()} dashboard.`,
       })
       window.setTimeout(() => {
-        router.push(dashboardForRole(role))
-      }, 1200)
-    }, 1200)
+        router.push(dashboardForRole(user.role))
+      }, 900)
+    } catch (error) {
+      pushToast({
+        kind: "error",
+        title: "Could not create account",
+        message: getAuthErrorMessage(
+          error,
+          "Something went wrong. Check your details and try again."
+        ),
+      })
+      setLoading(false)
+    }
   }
 
   return (
