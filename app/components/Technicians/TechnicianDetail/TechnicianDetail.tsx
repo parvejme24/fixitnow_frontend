@@ -15,13 +15,20 @@ import { useReducedMotion } from "framer-motion"
 import {
   formatTaka,
   firstName,
-  resolveTechnician,
   reviewsForTechnician,
   servicesForTechnician,
   type Review,
   type Service,
   type Technician,
 } from "@/app/lib/catalogue"
+import {
+  useService,
+  useServices,
+  useTechnician,
+  useTechnicianSlots,
+  useTechnicians,
+} from "@/lib/catalogue/hooks"
+import type { TechnicianSlot } from "@/lib/catalogue/types"
 import ReviewForm from "@/app/components/Shared/ReviewForm/ReviewForm"
 
 import "./TechnicianDetail.css"
@@ -127,32 +134,159 @@ export default function TechnicianDetail() {
   const id = searchParams.get("id")
   const serviceParam = searchParams.get("service")
 
-  const tech = useMemo(
-    () => resolveTechnician(id, serviceParam),
-    [id, serviceParam]
+  const techQuery = useTechnician(id ?? "", Boolean(id))
+  const serviceQuery = useService(
+    serviceParam ?? "",
+    Boolean(serviceParam) && !id
   )
-  const services = useMemo(() => servicesForTechnician(tech), [tech])
+  const techniciansQuery = useTechnicians({
+    limit: 50,
+    categoryId: serviceQuery.data?.cat,
+  })
+  const servicesQuery = useServices({ limit: 100 })
+  const slotsQuery = useTechnicianSlots(
+    techQuery.data?.id ?? id ?? "",
+    Boolean(techQuery.data?.id || id)
+  )
+
+  const tech = useMemo(() => {
+    if (techQuery.data) return techQuery.data
+    if (id && techQuery.isError) return null
+    const list = techniciansQuery.data?.items ?? []
+    if (serviceQuery.data) {
+      const match = list.find((t) => t.cats.includes(serviceQuery.data.cat))
+      if (match) return match
+    }
+    if (!id && !serviceParam) return null
+    return list[0] ?? null
+  }, [
+    techQuery.data,
+    techQuery.isError,
+    techniciansQuery.data,
+    serviceQuery.data,
+    id,
+    serviceParam,
+  ])
+
+  const loading =
+    (Boolean(id) && techQuery.isLoading) ||
+    (!id && Boolean(serviceParam) && (serviceQuery.isLoading || techniciansQuery.isLoading))
+
+  if (loading) {
+    return (
+      <div className="td-page" style={{ minHeight: "50vh", padding: 40 }}>
+        <p style={{ color: "#6E8091" }}>Loading technician…</p>
+      </div>
+    )
+  }
+
+  if (id && techQuery.isError) {
+    return (
+      <div className="td-page" style={{ minHeight: "50vh", padding: 40 }}>
+        <h1>Technician not found</h1>
+        <p>We could not load this profile from the API.</p>
+        <p>
+          <Link href="/technicians">Browse technicians</Link>
+        </p>
+      </div>
+    )
+  }
+
+  if (!tech) {
+    return (
+      <div className="td-page" style={{ minHeight: "50vh", padding: 40 }}>
+        <h1>Pick a technician</h1>
+        <p>
+          Open a profile from the{" "}
+          <Link href="/technicians">technicians list</Link>.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <TechnicianDetailView
+      tech={tech}
+      serviceParam={serviceParam}
+      allServices={servicesQuery.data?.items ?? []}
+      apiSlots={slotsQuery.data ?? []}
+      slotsLoading={slotsQuery.isLoading}
+      reduceMotion={reduceMotion}
+    />
+  )
+}
+
+function TechnicianDetailView({
+  tech,
+  serviceParam,
+  allServices,
+  apiSlots,
+  slotsLoading,
+  reduceMotion,
+}: {
+  tech: Technician
+  serviceParam: string | null
+  allServices: Service[]
+  apiSlots: TechnicianSlot[]
+  slotsLoading: boolean
+  reduceMotion: boolean
+}) {
+  const services = useMemo(
+    () => servicesForTechnician(tech, allServices),
+    [tech, allServices]
+  )
   const baseReviews = useMemo(() => reviewsForTechnician(tech), [tech])
   const [extraReviews, setExtraReviews] = useState<Review[]>([])
   const reviewList = useMemo(
     () => [...extraReviews, ...baseReviews],
     [extraReviews, baseReviews]
   )
-  const days = useMemo(() => buildDays(), [])
+
+  const apiDays = useMemo(() => {
+    const byDate = new Map<string, TechnicianSlot[]>()
+    for (const slot of apiSlots) {
+      const key = slot.date.slice(0, 10)
+      const list = byDate.get(key) ?? []
+      list.push(slot)
+      byDate.set(key, list)
+    }
+    return Array.from(byDate.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dateKey, slots], index) => {
+        const date = new Date(`${dateKey}T12:00:00`)
+        return {
+          index,
+          dateKey,
+          date,
+          dow: DOW[date.getDay()],
+          dom: date.getDate(),
+          mon: MON[date.getMonth()],
+          isFriday: date.getDay() === 5,
+          slots: slots.sort((a, b) => a.startTime.localeCompare(b.startTime)),
+        }
+      })
+  }, [apiSlots])
+
+  const useApiSchedule = apiDays.length > 0
+  const days = useMemo(() => {
+    if (useApiSchedule) return apiDays
+    return buildDays().map((d) => ({
+      ...d,
+      dateKey: "",
+      slots: [] as TechnicianSlot[],
+    }))
+  }, [useApiSchedule, apiDays])
   const fname = firstName(tech.name)
 
   const defaultServiceId = useMemo(() => {
     if (serviceParam && services.some((s) => s.id === serviceParam)) {
       return serviceParam
     }
-    return ""
+    return services[0]?.id ?? ""
   }, [serviceParam, services])
 
   const [selectedServiceId, setSelectedServiceId] = useState(defaultServiceId)
-  const [dayIndex, setDayIndex] = useState(() => {
-    const firstFree = days.findIndex((d) => !d.isFriday)
-    return firstFree >= 0 ? firstFree : 0
-  })
+  const [dayIndex, setDayIndex] = useState(0)
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [reviewsReady, setReviewsReady] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -188,9 +322,18 @@ export default function TechnicianDetail() {
   const total =
     selectedService != null ? selectedService.price + tech.rate : null
 
+  const selectedSlotLabel = useMemo(() => {
+    if (!selectedSlot) return null
+    if (useApiSchedule) {
+      const slot = apiSlots.find((s) => s.id === selectedSlot)
+      return slot ? slot.startTime : selectedSlot
+    }
+    return selectedSlot
+  }, [selectedSlot, useApiSchedule, apiSlots])
+
   const slotSummary =
-    selectedDay && selectedSlot
-      ? `${selectedDay.dow} ${selectedDay.dom} ${selectedDay.mon} · ${slotLabel(selectedSlot)}`
+    selectedDay && selectedSlotLabel
+      ? `${selectedDay.dow} ${selectedDay.dom} ${selectedDay.mon} · ${slotLabel(selectedSlotLabel)}`
       : "—"
 
   const canRequest = Boolean(selectedService && selectedSlot) && !requestRef
@@ -331,22 +474,44 @@ export default function TechnicianDetail() {
 
             <div className="td-step">
               <p className="td-step__label">Step 3 · Pick a time</p>
+              {slotsLoading && !useApiSchedule ? (
+                <p style={{ color: "#6E8091", fontSize: "0.9rem" }}>
+                  Loading available slots…
+                </p>
+              ) : null}
               <div className="slot-grid">
-                {SLOT_TIMES.map((time, i) => {
-                  const booked = isSlotBooked(dayIndex, i)
-                  const on = selectedSlot === time
-                  return (
-                    <button
-                      key={time}
-                      type="button"
-                      className={`${on ? "is-on" : ""}${booked ? " is-booked" : ""}`}
-                      disabled={booked || Boolean(requestRef)}
-                      onClick={() => setSelectedSlot(time)}
-                    >
-                      {slotLabel(time)}
-                    </button>
-                  )
-                })}
+                {useApiSchedule
+                  ? (selectedDay?.slots ?? []).map((slot) => {
+                      const on = selectedSlot === slot.id
+                      return (
+                        <button
+                          key={slot.id}
+                          type="button"
+                          className={`${on ? "is-on" : ""}${slot.isBooked ? " is-booked" : ""}`}
+                          disabled={slot.isBooked || Boolean(requestRef)}
+                          onClick={() => setSelectedSlot(slot.id)}
+                        >
+                          {slotLabel(slot.startTime)}
+                        </button>
+                      )
+                    })
+                  : !slotsLoading
+                    ? SLOT_TIMES.map((time, i) => {
+                        const booked = isSlotBooked(dayIndex, i)
+                        const on = selectedSlot === time
+                        return (
+                          <button
+                            key={time}
+                            type="button"
+                            className={`${on ? "is-on" : ""}${booked ? " is-booked" : ""}`}
+                            disabled={booked || Boolean(requestRef)}
+                            onClick={() => setSelectedSlot(time)}
+                          >
+                            {slotLabel(time)}
+                          </button>
+                        )
+                      })
+                    : null}
               </div>
               <div className="slot-legend">
                 <span>

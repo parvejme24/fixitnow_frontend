@@ -245,6 +245,15 @@
   font-size: 0.9rem;
 }
 
+.result-bar__right [data-slot="select-trigger"] {
+  font-family: inherit;
+}
+
+.browse-filters [data-slot="select-trigger"] {
+  width: 100%;
+  min-width: 0;
+}
+
 .chip-row {
   display: flex;
   flex-wrap: wrap;

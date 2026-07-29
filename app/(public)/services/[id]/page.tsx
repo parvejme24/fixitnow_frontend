@@ -1,8 +1,7 @@
 import type { Metadata } from "next"
-import { notFound } from "next/navigation"
 
 import ServiceDetail from "../../../components/Services/ServiceDetail/ServiceDetail"
-import { getServiceById } from "@/app/lib/catalogue"
+import { fetchService } from "@/lib/catalogue/api"
 
 type Params = Promise<{ id: string }>
 
@@ -12,9 +11,12 @@ export async function generateMetadata({
   params: Params
 }): Promise<Metadata> {
   const { id } = await params
-  const service = getServiceById(id)
-  if (!service) return { title: "Service — FixItNow" }
-  return { title: `${service.title} — FixItNow` }
+  try {
+    const service = await fetchService(id)
+    return { title: `${service.title} — FixItNow` }
+  } catch {
+    return { title: "Service — FixItNow" }
+  }
 }
 
 export default async function ServiceDetailPage({
@@ -23,6 +25,5 @@ export default async function ServiceDetailPage({
   params: Params
 }) {
   const { id } = await params
-  if (!getServiceById(id)) notFound()
   return <ServiceDetail serviceId={id} />
 }

@@ -1,53 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 import { useReducedMotion } from "framer-motion"
 import { CheckCircle2Icon } from "lucide-react"
 
-import "./TopTechnicians.css"
+import { useTopTechnicians } from "@/lib/catalogue/hooks"
 
-const TECHS = [
-  {
-    id: "t3",
-    initials: "NA",
-    name: "Nasima Akter",
-    trade: "AC Technician",
-    area: "Gulshan",
-    rating: 4.9,
-    jobs: 780,
-    exp: "11y",
-    online: false,
-    verified: true,
-    skills: ["R-32 refill", "Coil wash", "Split install"],
-  },
-  {
-    id: "t1",
-    initials: "RH",
-    name: "Rakib Hossain",
-    trade: "Master Plumber",
-    area: "Dhanmondi",
-    rating: 4.9,
-    jobs: 640,
-    exp: "9y",
-    online: true,
-    verified: true,
-    skills: ["Leak tracing", "Geyser install", "Drain rodding"],
-  },
-  {
-    id: "t6",
-    initials: "FI",
-    name: "Farhana Islam",
-    trade: "Deep Cleaning Lead",
-    area: "Bashundhara",
-    rating: 4.9,
-    jobs: 590,
-    exp: "6y",
-    online: true,
-    verified: true,
-    skills: ["Kitchen degrease", "Sofa shampoo", "Floor polish"],
-  },
-] as const
+import "./TopTechnicians.css"
 
 function SkeletonCard() {
   return (
@@ -64,15 +24,9 @@ function SkeletonCard() {
 
 export default function TopTechnicians() {
   const reduceMotion = useReducedMotion() ?? false
-  const [loading, setLoading] = useState(true)
   const gridRef = useRef<HTMLDivElement>(null)
-  const showSkeleton = loading && !reduceMotion
-
-  useEffect(() => {
-    if (reduceMotion) return
-    const id = window.setTimeout(() => setLoading(false), 1100)
-    return () => window.clearTimeout(id)
-  }, [reduceMotion])
+  const { data: techs = [], isLoading } = useTopTechnicians()
+  const showSkeleton = isLoading && !reduceMotion
 
   useEffect(() => {
     if (showSkeleton) return
@@ -99,7 +53,7 @@ export default function TopTechnicians() {
 
     cards.forEach((el) => io.observe(el))
     return () => io.disconnect()
-  }, [showSkeleton, reduceMotion])
+  }, [showSkeleton, reduceMotion, techs.length])
 
   return (
     <section
@@ -114,7 +68,7 @@ export default function TopTechnicians() {
               The people who show up
             </h2>
           </div>
-          <Link href="/services" className="tt-ghost-light">
+          <Link href="/technicians" className="tt-ghost-light">
             All technicians
           </Link>
         </div>
@@ -122,7 +76,7 @@ export default function TopTechnicians() {
         <div ref={gridRef} className="grid grid-3" aria-busy={showSkeleton}>
           {showSkeleton
             ? Array.from({ length: 3 }, (_, i) => <SkeletonCard key={i} />)
-            : TECHS.map((tech, index) => (
+            : techs.slice(0, 3).map((tech, index) => (
                 <Link
                   key={tech.id}
                   href={`/technician?id=${tech.id}`}
@@ -153,7 +107,7 @@ export default function TopTechnicians() {
                   </div>
 
                   <div className="tech-card__skills">
-                    {tech.skills.map((skill) => (
+                    {tech.skills.slice(0, 3).map((skill) => (
                       <span key={skill} className="skill-tag">
                         {skill}
                       </span>
@@ -170,7 +124,7 @@ export default function TopTechnicians() {
                       <span>Jobs</span>
                     </div>
                     <div>
-                      <b>{tech.exp}</b>
+                      <b>{tech.exp}y</b>
                       <span>Experience</span>
                     </div>
                   </div>

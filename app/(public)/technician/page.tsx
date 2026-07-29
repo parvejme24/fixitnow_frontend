@@ -1,8 +1,18 @@
 import type { Metadata } from "next"
+import {
+  dehydrate,
+  HydrationBoundary,
+  QueryClient,
+} from "@tanstack/react-query"
 import { Suspense } from "react"
 
 import TechnicianDetail from "../../components/Technicians/TechnicianDetail/TechnicianDetail"
-import { resolveTechnician } from "@/app/lib/catalogue"
+import {
+  fetchTechnician,
+  fetchTechnicianSlots,
+  fetchTechnicians,
+} from "@/lib/catalogue/api"
+import { catalogueKeys } from "@/lib/catalogue/query-keys"
 
 type SearchParams = Promise<{ id?: string; service?: string }>
 
@@ -12,16 +22,50 @@ export async function generateMetadata({
   searchParams: SearchParams
 }): Promise<Metadata> {
   const params = await searchParams
-  const tech = resolveTechnician(params.id, params.service)
-  return {
-    title: `${tech.name} — FixItNow`,
+  if (params.id) {
+    try {
+      const tech = await fetchTechnician(params.id)
+      return { title: `${tech.name} — FixItNow` }
+    } catch {
+      /* fall through */
+    }
   }
+  return { title: "Technician — FixItNow" }
 }
 
-export default function TechnicianPage() {
+export default async function TechnicianPage({
+  searchParams,
+}: {
+  searchParams: SearchParams
+}) {
+  const params = await searchParams
+  const queryClient = new QueryClient()
+
+  if (params.id) {
+    await Promise.all([
+      queryClient.prefetchQuery({
+        queryKey: catalogueKeys.technician(params.id),
+        queryFn: () => fetchTechnician(params.id!),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: catalogueKeys.technicianSlots(params.id),
+        queryFn: () => fetchTechnicianSlots(params.id!),
+      }),
+    ])
+  } else {
+    await queryClient.prefetchQuery({
+      queryKey: catalogueKeys.technicians({ limit: 50 }),
+      queryFn: () => fetchTechnicians({ limit: 50 }),
+    })
+  }
+
   return (
-    <Suspense fallback={<div className="td-page" style={{ minHeight: "50vh" }} />}>
-      <TechnicianDetail />
-    </Suspense>
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <Suspense
+        fallback={<div className="td-page" style={{ minHeight: "50vh" }} />}
+      >
+        <TechnicianDetail />
+      </Suspense>
+    </HydrationBoundary>
   )
 }

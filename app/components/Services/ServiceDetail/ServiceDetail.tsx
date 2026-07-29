@@ -11,14 +11,14 @@ import {
 
 import ReviewForm from "@/app/components/Shared/ReviewForm/ReviewForm"
 import {
-  categoryName,
   formatTaka,
-  getServiceById,
   reviewsForService,
   techniciansForService,
   type Review,
   type Service,
+  type Technician,
 } from "@/app/lib/catalogue"
+import { useService, useTechnicians } from "@/lib/catalogue/hooks"
 
 import "./ServiceDetail.css"
 
@@ -50,9 +50,20 @@ function stars(rating: number) {
 }
 
 export default function ServiceDetail({ serviceId }: { serviceId: string }) {
-  const service = getServiceById(serviceId)
+  const serviceQuery = useService(serviceId)
+  const techniciansQuery = useTechnicians({ limit: 50 })
 
-  if (!service) {
+  if (serviceQuery.isLoading) {
+    return (
+      <div className="sd-page">
+        <div className="sd-missing">
+          <h1>Loading service…</h1>
+        </div>
+      </div>
+    )
+  }
+
+  if (serviceQuery.isError || !serviceQuery.data) {
     return (
       <div className="sd-page">
         <div className="sd-missing">
@@ -66,11 +77,25 @@ export default function ServiceDetail({ serviceId }: { serviceId: string }) {
     )
   }
 
-  return <ServiceDetailView service={service} />
+  return (
+    <ServiceDetailView
+      service={serviceQuery.data}
+      technicians={techniciansQuery.data?.items ?? []}
+    />
+  )
 }
 
-function ServiceDetailView({ service }: { service: Service }) {
-  const techs = useMemo(() => techniciansForService(service), [service])
+function ServiceDetailView({
+  service,
+  technicians,
+}: {
+  service: Service
+  technicians: Technician[]
+}) {
+  const techs = useMemo(
+    () => techniciansForService(service, technicians),
+    [service, technicians]
+  )
   const [reviews, setReviews] = useState<Review[]>(() =>
     reviewsForService(service)
   )
@@ -118,7 +143,7 @@ function ServiceDetailView({ service }: { service: Service }) {
               color: "#9AABB8",
             }}
           >
-            {categoryName(service.cat)}
+            {service.catName}
           </p>
           <h1>{service.title}</h1>
           <p className="sd-hero__lede">{service.desc}</p>
@@ -160,7 +185,7 @@ function ServiceDetailView({ service }: { service: Service }) {
                 <li>
                   <WrenchIcon size={16} />
                   <span>
-                    Matched to {categoryName(service.cat)} specialists in Dhaka
+                    Matched to {service.catName} specialists in Dhaka
                   </span>
                 </li>
               </ul>
@@ -251,7 +276,7 @@ function ServiceDetailView({ service }: { service: Service }) {
             <div className="sd-panel__rows">
               <div className="sd-panel__row">
                 <span>Trade</span>
-                <b>{categoryName(service.cat)}</b>
+                <b>{service.catName}</b>
               </div>
               <div className="sd-panel__row">
                 <span>Duration</span>

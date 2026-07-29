@@ -4,24 +4,39 @@ import Link from "next/link"
 import { useEffect, useRef } from "react"
 import { useReducedMotion } from "framer-motion"
 
+import { useCategories } from "@/lib/catalogue/hooks"
+
 import "./CategoriesSection.css"
 
-const CATEGORIES = [
-  { id: "c1", name: "Plumbing", jobs: 1284, icon: "pipe" },
-  { id: "c2", name: "Electrical", jobs: 1102, icon: "bolt" },
-  { id: "c3", name: "AC & Cooling", jobs: 968, icon: "snow" },
-  { id: "c4", name: "Appliance Repair", jobs: 741, icon: "chip" },
-  { id: "c5", name: "Carpentry", jobs: 620, icon: "saw" },
-  { id: "c6", name: "Painting", jobs: 512, icon: "brush" },
-  { id: "c7", name: "Deep Cleaning", jobs: 889, icon: "spray" },
-  { id: "c8", name: "Pest Control", jobs: 304, icon: "bug" },
-] as const
+type IconType =
+  | "pipe"
+  | "bolt"
+  | "snow"
+  | "chip"
+  | "saw"
+  | "brush"
+  | "spray"
+  | "bug"
+
+function iconForCategory(slug: string, name: string): IconType {
+  const key = `${slug} ${name}`.toLowerCase()
+  if (key.includes("plumb")) return "pipe"
+  if (key.includes("electric")) return "bolt"
+  if (key.includes("ac") || key.includes("cool")) return "snow"
+  if (key.includes("appliance")) return "chip"
+  if (key.includes("carpent")) return "saw"
+  if (key.includes("paint")) return "brush"
+  if (key.includes("clean")) return "spray"
+  if (key.includes("pest")) return "bug"
+  if (key.includes("mov")) return "saw"
+  return "bolt"
+}
 
 function formatJobs(n: number) {
   return n.toLocaleString("en-IN")
 }
 
-function CategoryIcon({ type }: { type: (typeof CATEGORIES)[number]["icon"] }) {
+function CategoryIcon({ type }: { type: IconType }) {
   const common = {
     width: 21,
     height: 21,
@@ -113,10 +128,11 @@ function CategoryIcon({ type }: { type: (typeof CATEGORIES)[number]["icon"] }) {
 export default function CategoriesSection() {
   const reduceMotion = useReducedMotion() ?? false
   const gridRef = useRef<HTMLDivElement>(null)
+  const { data: categories = [], isLoading } = useCategories()
 
   useEffect(() => {
     const root = gridRef.current
-    if (!root) return
+    if (!root || isLoading) return
     const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"))
 
     if (reduceMotion) {
@@ -138,7 +154,7 @@ export default function CategoriesSection() {
 
     cards.forEach((el) => io.observe(el))
     return () => io.disconnect()
-  }, [reduceMotion])
+  }, [reduceMotion, isLoading, categories.length])
 
   return (
     <section className="cats-section" aria-labelledby="cats-heading">
@@ -147,7 +163,7 @@ export default function CategoriesSection() {
           <div>
             <p className="cats-eyebrow">What needs fixing</p>
             <h2 id="cats-heading" className="display-lg">
-              Eight trades, one booking flow
+              Trades on one booking flow
             </h2>
           </div>
           <Link href="/services" className="cats-ghost">
@@ -156,23 +172,33 @@ export default function CategoriesSection() {
         </div>
 
         <div ref={gridRef} className="grid grid-4">
-          {CATEGORIES.map((cat, index) => (
-            <Link
-              key={cat.id}
-              href={`/services?cat=${cat.id}`}
-              className="card card--pad card--hover"
-              data-reveal
-              style={{ transitionDelay: `${index * 55}ms` }}
-            >
-              <span className="cats-icon">
-                <CategoryIcon type={cat.icon} />
-              </span>
-              <b className="display-sm">{cat.name}</b>
-              <span className="cats-meta">
-                {formatJobs(cat.jobs)} jobs done
-              </span>
-            </Link>
-          ))}
+          {isLoading
+            ? Array.from({ length: 8 }, (_, i) => (
+                <div
+                  key={i}
+                  className="card card--pad"
+                  aria-hidden
+                  style={{ minHeight: 120, opacity: 0.45 }}
+                />
+              ))
+            : categories.map((cat, index) => (
+                <Link
+                  key={cat.id}
+                  href={`/services?cat=${cat.id}`}
+                  className="card card--pad card--hover"
+                  data-reveal
+                  style={{ transitionDelay: `${index * 55}ms` }}
+                >
+                  <span className="cats-icon">
+                    <CategoryIcon type={iconForCategory(cat.slug, cat.name)} />
+                  </span>
+                  <b className="display-sm">{cat.name}</b>
+                  <span className="cats-meta">
+                    {formatJobs(cat.jobsDone || cat.serviceCount)}{" "}
+                    {cat.jobsDone ? "jobs done" : "services"}
+                  </span>
+                </Link>
+              ))}
         </div>
       </div>
     </section>

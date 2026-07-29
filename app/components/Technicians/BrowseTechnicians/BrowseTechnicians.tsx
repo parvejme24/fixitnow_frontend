@@ -7,18 +7,23 @@ import { useReducedMotion } from "framer-motion"
 import { SearchIcon, StarIcon } from "lucide-react"
 
 import {
-  AREAS,
-  CATEGORIES,
-  TECHNICIANS,
   categoryName,
   formatTaka,
-  technicianCategoryCounts,
   type CategoryId,
   type Technician,
 } from "@/app/lib/catalogue"
+import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
+import { useAreas, useCategories, useTechnicians } from "@/lib/catalogue/hooks"
 import "../../Services/BrowseServices/BrowseServices.css"
 
 type SortKey = "pop" | "rating" | "price-asc" | "price-desc"
+
+const SORT_OPTIONS = [
+  { value: "pop", label: "Most booked" },
+  { value: "rating", label: "Top rated" },
+  { value: "price-asc", label: "Fee: low to high" },
+  { value: "price-desc", label: "Fee: high to low" },
+] as const
 
 const RATING_CHIPS = [
   { label: "Any", value: 0 },
@@ -37,6 +42,7 @@ function useDebounced<T>(value: T, delay = 220) {
 }
 
 function filterTechnicians(
+  list: Technician[],
   q: string,
   cats: CategoryId[],
   area: string,
@@ -46,8 +52,8 @@ function filterTechnicians(
   sort: SortKey
 ) {
   const query = q.trim().toLowerCase()
-  let list = TECHNICIANS.filter((t) => {
-    const hay = `${t.name} ${t.trade} ${t.skills.join(" ")}`.toLowerCase()
+  let filtered = list.filter((t) => {
+    const hay = `${t.name} ${t.trade} ${t.skills.join(" ")} ${t.area}`.toLowerCase()
     if (query && !hay.includes(query)) return false
     if (cats.length && !t.cats.some((c) => cats.includes(c))) return false
     if (area && t.area !== area) return false
@@ -57,13 +63,13 @@ function filterTechnicians(
     return true
   })
 
-  list = [...list].sort((a, b) => {
+  filtered = [...filtered].sort((a, b) => {
     if (sort === "rating") return b.rating - a.rating
     if (sort === "price-asc") return a.rate - b.rate
     if (sort === "price-desc") return b.rate - a.rate
     return b.jobs - a.jobs
   })
-  return list
+  return filtered
 }
 
 function TechCard({ tech, index }: { tech: Technician; index: number }) {
@@ -115,30 +121,58 @@ function TechCard({ tech, index }: { tech: Technician; index: number }) {
 export default function BrowseTechnicians() {
   const searchParams = useSearchParams()
   const reduceMotion = useReducedMotion() ?? false
-  const counts = useMemo(() => technicianCategoryCounts(), [])
+  const categoriesQuery = useCategories()
+  const areasQuery = useAreas()
+  const categories = categoriesQuery.data ?? []
+  const areas = areasQuery.data ?? []
 
-  const initialCat = searchParams.get("cat") as CategoryId | null
+  const initialCat = searchParams.get("cat")
 
   const [q, setQ] = useState("")
   const debouncedQ = useDebounced(q, 220)
-  const [cats, setCats] = useState<CategoryId[]>(
-    initialCat && CATEGORIES.some((c) => c.id === initialCat) ? [initialCat] : []
-  )
+  const [cats, setCats] = useState<CategoryId[]>(initialCat ? [initialCat] : [])
   const [area, setArea] = useState("")
   const [minRating, setMinRating] = useState(0)
   const [budget, setBudget] = useState(4500)
   const [today, setToday] = useState(false)
   const [sort, setSort] = useState<SortKey>("pop")
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<{ title: string; message: string } | null>(
     null
   )
 
-  useEffect(() => {
-    const id = window.setTimeout(() => setLoading(false), 550)
-    return () => window.clearTimeout(id)
-  }, [])
+  const selectedAreaId = useMemo(
+    () => areas.find((a) => a.name === area)?.id,
+    [areas, area]
+  )
+
+  const apiQuery = useMemo(
+    () => ({
+      limit: 100,
+      q: debouncedQ.trim() || undefined,
+      categoryId: cats.length === 1 ? cats[0] : undefined,
+      areaId: selectedAreaId,
+      online: today || undefined,
+    }),
+    [debouncedQ, cats, selectedAreaId, today]
+  )
+
+  const techniciansQuery = useTechnicians(apiQuery)
+  const fetchedTechnicians = techniciansQuery.data?.items ?? []
+  const totalFromApi =
+    techniciansQuery.data?.meta?.total ?? fetchedTechnicians.length
+
+  const loading =
+    (categoriesQuery.isLoading ||
+      areasQuery.isLoading ||
+      techniciansQuery.isLoading) &&
+    !fetchedTechnicians.length
+  const hasError =
+    (techniciansQuery.isError ||
+      categoriesQuery.isError ||
+      areasQuery.isError) &&
+    !fetchedTechnicians.length
+  const isRefreshing = techniciansQuery.isFetching && !loading
 
   useEffect(() => {
     if (!toast) return
@@ -146,18 +180,35 @@ export default function BrowseTechnicians() {
     return () => window.clearTimeout(id)
   }, [toast])
 
+  useEffect(() => {
+    if (!initialCat || !categories.length) return
+    if (categories.some((c) => c.id === initialCat)) {
+      setCats((prev) => (prev.includes(initialCat) ? prev : [initialCat]))
+    }
+  }, [initialCat, categories])
+
   const technicians = useMemo(
     () =>
       filterTechnicians(
-        debouncedQ,
-        cats,
-        area,
+        fetchedTechnicians,
+        cats.length === 1 ? "" : debouncedQ,
+        cats.length === 1 ? [] : cats,
+        selectedAreaId ? "" : area,
         minRating,
         budget,
-        today,
+        false,
         sort
       ),
-    [debouncedQ, cats, area, minRating, budget, today, sort]
+    [
+      fetchedTechnicians,
+      debouncedQ,
+      cats,
+      area,
+      selectedAreaId,
+      minRating,
+      budget,
+      sort,
+    ]
   )
 
   const toggleCat = (id: CategoryId) => {
@@ -179,11 +230,17 @@ export default function BrowseTechnicians() {
     })
   }
 
+  const retry = () => {
+    void categoriesQuery.refetch()
+    void areasQuery.refetch()
+    void techniciansQuery.refetch()
+  }
+
   const activeChips: { key: string; label: string; onRemove: () => void }[] = []
   for (const id of cats) {
     activeChips.push({
       key: `cat-${id}`,
-      label: categoryName(id),
+      label: categoryName(id, categories),
       onRemove: () => setCats((prev) => prev.filter((c) => c !== id)),
     })
   }
@@ -272,7 +329,7 @@ export default function BrowseTechnicians() {
 
           <div className="browse-block">
             <h3>Trade</h3>
-            {CATEGORIES.map((cat) => (
+            {categories.map((cat) => (
               <label key={cat.id} className="check">
                 <input
                   type="checkbox"
@@ -280,25 +337,24 @@ export default function BrowseTechnicians() {
                   onChange={() => toggleCat(cat.id)}
                 />
                 <span>{cat.name}</span>
-                <em>{counts[cat.id]}</em>
+                <em>{cat.technicianCount}</em>
               </label>
             ))}
           </div>
 
           <div className="browse-block">
             <h3>Area in Dhaka</h3>
-            <select
-              className="browse-select"
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
-            >
-              <option value="">Anywhere in Dhaka</option>
-              {AREAS.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+            <BrowseSelect
+              aria-label="Filter by area"
+              value={area || "__all__"}
+              onValueChange={(value) =>
+                setArea(value === "__all__" ? "" : value)
+              }
+              options={[
+                { value: "__all__", label: "Anywhere in Dhaka" },
+                ...areas.map((a) => ({ value: a.name, label: a.name })),
+              ]}
+            />
           </div>
 
           <div className="browse-block">
@@ -353,20 +409,21 @@ export default function BrowseTechnicians() {
           <div className="result-bar">
             <div className="result-bar__left">
               <span className="result-count">{countLabel}</span>
+              {isRefreshing && (
+                <span className="result-count" style={{ opacity: 0.55 }}>
+                  Updating…
+                </span>
+              )}
             </div>
 
             <div className="result-bar__right">
-              <select
-                className="browse-select"
-                style={{ width: "auto" }}
+              <BrowseSelect
+                aria-label="Sort technicians"
                 value={sort}
-                onChange={(e) => setSort(e.target.value as SortKey)}
-              >
-                <option value="pop">Most booked</option>
-                <option value="rating">Top rated</option>
-                <option value="price-asc">Fee: low to high</option>
-                <option value="price-desc">Fee: high to low</option>
-              </select>
+                onValueChange={(value) => setSort(value as SortKey)}
+                options={[...SORT_OPTIONS]}
+                triggerClassName="w-auto min-w-[12.5rem]"
+              />
             </div>
           </div>
 
@@ -385,7 +442,18 @@ export default function BrowseTechnicians() {
             </div>
           )}
 
-          {loading ? (
+          {hasError ? (
+            <div className="browse-empty">
+              <div className="browse-empty__icon">
+                <SearchIcon size={26} />
+              </div>
+              <h3>Could not load technicians</h3>
+              <p>Check your connection and try again.</p>
+              <button type="button" className="btn-ghost" onClick={retry}>
+                Retry
+              </button>
+            </div>
+          ) : loading ? (
             <div className="skeleton-grid tech-grid" aria-hidden="true">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="skeleton-card">
@@ -405,8 +473,8 @@ export default function BrowseTechnicians() {
               </div>
               <h3>No matches at these filters</h3>
               <p>
-                Try clearing filters. Network has {TECHNICIANS.length}{" "}
-                technicians.
+                Try clearing filters. API has {totalFromApi} matching technician
+                {totalFromApi === 1 ? "" : "s"} before local filters.
               </p>
               <button type="button" className="btn-ghost" onClick={clearAll}>
                 Clear filters
