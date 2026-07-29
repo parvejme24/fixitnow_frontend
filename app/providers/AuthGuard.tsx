@@ -4,7 +4,7 @@ import { useEffect, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
 
 import { useAuth } from "@/app/providers/AuthProvider"
-import type { AuthRole } from "@/lib/auth/types"
+import { dashboardForRole, type AuthRole } from "@/lib/auth/types"
 
 type AuthGuardProps = {
   children: ReactNode
@@ -29,7 +29,7 @@ export default function AuthGuard({
       return
     }
     if (roles && user && !roles.includes(user.role)) {
-      router.replace("/")
+      router.replace(dashboardForRole(user.role))
     }
   }, [
     isLoading,
@@ -51,7 +51,11 @@ export default function AuthGuard({
   }
 
   if (roles && user && !roles.includes(user.role)) {
-    return null
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-[#6E8091]">
+        Redirecting to your dashboard…
+      </div>
+    )
   }
 
   return <>{children}</>

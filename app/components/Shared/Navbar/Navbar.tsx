@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useId, useState } from "react"
 import {
   ArrowRightIcon,
-  CalendarDaysIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
   LogOutIcon,
@@ -26,31 +25,49 @@ import type { AuthRole, AuthUser } from "@/lib/auth/types"
 import { initialsFromName } from "@/lib/auth/types"
 import { cn } from "@/lib/utils"
 
-const navLinks = [
+const baseNavLinks = [
   { label: "Home", href: "/" },
   { label: "Browse services", href: "/services" },
   { label: "Technicians", href: "/technicians" },
-  { label: "My bookings", href: "/bookings" },
 ] as const
+
+function primaryNavLinks(role?: AuthRole | null) {
+  if (role === "TECHNICIAN") {
+    return [
+      ...baseNavLinks,
+      { label: "Dashboard", href: "/dashboard/technician" },
+    ]
+  }
+  if (role === "ADMIN") {
+    return [...baseNavLinks, { label: "Admin console", href: "/dashboard/admin" }]
+  }
+  if (role === "CUSTOMER") {
+    return [...baseNavLinks, { label: "My bookings", href: "/bookings" }]
+  }
+  return [...baseNavLinks, { label: "My bookings", href: "/bookings" }]
+}
 
 function dashboardLinksForRole(role: AuthRole) {
   if (role === "TECHNICIAN") {
     return [
       {
         label: "Technician dashboard",
-        href: "/technicians",
+        href: "/dashboard/technician",
         icon: LayoutDashboardIcon,
       },
-      { label: "My bookings", href: "/bookings", icon: CalendarDaysIcon },
       { label: "Browse services", href: "/services", icon: WrenchIcon },
+      { label: "Technicians", href: "/technicians", icon: WrenchIcon },
     ]
   }
   if (role === "ADMIN") {
     return [
-      { label: "Admin home", href: "/", icon: LayoutDashboardIcon },
+      {
+        label: "Admin console",
+        href: "/dashboard/admin",
+        icon: LayoutDashboardIcon,
+      },
       { label: "Browse services", href: "/services", icon: WrenchIcon },
       { label: "Technicians", href: "/technicians", icon: WrenchIcon },
-      { label: "Bookings", href: "/bookings", icon: CalendarDaysIcon },
     ]
   }
   return [
@@ -288,6 +305,8 @@ function AuthSlot({
 
 export default function Navbar() {
   const pathname = usePathname()
+  const { user } = useAuth()
+  const navLinks = primaryNavLinks(user?.role)
   const [open, setOpen] = useState(false)
   const [elevated, setElevated] = useState(false)
   const [lastPathname, setLastPathname] = useState(pathname)

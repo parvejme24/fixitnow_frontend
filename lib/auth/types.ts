@@ -68,8 +68,8 @@ export function toUiRole(role: AuthRole): UiRole {
 
 export function dashboardForRole(role: AuthRole | UiRole) {
   const r = role.toUpperCase()
-  if (r === "TECHNICIAN") return "/technicians"
-  if (r === "ADMIN") return "/"
+  if (r === "TECHNICIAN") return "/dashboard/technician"
+  if (r === "ADMIN") return "/dashboard/admin"
   return "/bookings"
 }
 
