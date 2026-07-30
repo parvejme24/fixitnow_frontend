@@ -7,6 +7,8 @@ export type AuthUser = {
   phone?: string | null
   role: AuthRole
   initials?: string | null
+  /** Profile image URL from API (avatar / image / profileImage) */
+  image?: string | null
   isActive?: boolean
   createdAt?: string
   updatedAt?: string
@@ -44,6 +46,8 @@ export type UpdateMeInput = {
   name?: string
   phone?: string
   initials?: string
+  /** Optional profile photo — sent as multipart when present */
+  image?: File | null
 }
 
 export type ChangePasswordInput = {
@@ -57,6 +61,12 @@ export type ResetPasswordInput = {
 }
 
 export type UiRole = "customer" | "technician" | "admin"
+
+/** API host without `/api/v1` — for uploaded media paths. */
+const API_ORIGIN = (
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "https://fixitnow-backend-weld.vercel.app/api/v1"
+).replace(/\/api\/v1\/?$/, "")
 
 export function toApiRole(role: UiRole): AuthRole {
   return role.toUpperCase() as AuthRole
@@ -105,4 +115,17 @@ export function initialsFromName(name: string) {
   if (!parts.length) return "FN"
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+}
+
+export function absoluteMediaUrl(path?: string | null) {
+  if (!path) return null
+  if (
+    /^https?:\/\//i.test(path) ||
+    path.startsWith("blob:") ||
+    path.startsWith("data:")
+  ) {
+    return path
+  }
+  const clean = path.startsWith("/") ? path : `/${path}`
+  return `${API_ORIGIN}${clean}`
 }

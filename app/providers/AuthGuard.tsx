@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"
+import { LoaderCircleIcon } from "lucide-react"
 
 import { useAuth } from "@/app/providers/AuthProvider"
 import { dashboardForRole, type AuthRole } from "@/lib/auth/types"
@@ -17,6 +18,23 @@ function normalizeRole(role: string | undefined | null): AuthRole | null {
   const r = role.toUpperCase()
   if (r === "ADMIN" || r === "TECHNICIAN" || r === "CUSTOMER") return r
   return null
+}
+
+function AuthLoadingScreen() {
+  return (
+    <div
+      className="flex min-h-[100dvh] w-full items-center justify-center bg-[#F7F9FB]"
+      role="status"
+      aria-label="Loading"
+    >
+      <LoaderCircleIcon
+        size={36}
+        className="animate-spin text-[#FFC93C]"
+        aria-hidden
+      />
+      <span className="sr-only">Loading</span>
+    </div>
+  )
 }
 
 export default function AuthGuard({
@@ -52,20 +70,8 @@ export default function AuthGuard({
     redirectTo,
   ])
 
-  if (isLoading || !isAuthenticated || !userRole) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-[#6E8091]">
-        Checking your session…
-      </div>
-    )
-  }
-
-  if (!allowed) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-[#6E8091]">
-        Redirecting to your dashboard…
-      </div>
-    )
+  if (isLoading || !isAuthenticated || !userRole || !allowed) {
+    return <AuthLoadingScreen />
   }
 
   return <>{children}</>

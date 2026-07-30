@@ -8,6 +8,7 @@ import {
   KeyRoundIcon,
   LayoutDashboardIcon,
   LogOutIcon,
+  UserRoundIcon,
   WrenchIcon,
 } from "lucide-react"
 
@@ -197,6 +198,14 @@ function UserMenu({ user }: { user: AuthUser }) {
             </DropdownMenuItem>
           )
         })}
+
+        <DropdownMenuItem
+          className="cursor-pointer rounded-[8px] px-2.5 py-2 text-sm text-[#D5DEE5] focus:bg-white/8 focus:text-white"
+          onClick={() => router.push("/profile")}
+        >
+          <UserRoundIcon className="size-4 text-[#9AABB8]" />
+          My profile
+        </DropdownMenuItem>
 
         <DropdownMenuItem
           className="cursor-pointer rounded-[8px] px-2.5 py-2 text-sm text-[#D5DEE5] focus:bg-white/8 focus:text-white"

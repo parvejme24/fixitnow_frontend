@@ -7,6 +7,7 @@ import {
   InboxIcon,
   LogOutIcon,
   StarIcon,
+  UserRoundIcon,
   WalletIcon,
   WrenchIcon,
 } from "lucide-react"
@@ -163,8 +164,8 @@ export default function CustomerDashboard() {
       items: [
         {
           label: "Profile",
-          href: "/auth/change-password",
-          icon: <CalendarDaysIcon />,
+          href: "/profile",
+          icon: <UserRoundIcon />,
         },
         { label: "Log out", href: "#", icon: <LogOutIcon /> },
       ],

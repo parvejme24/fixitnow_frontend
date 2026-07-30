@@ -67,13 +67,23 @@ export async function api<T>(
   const headers: HeadersInit = {
     Accept: "application/json",
   }
-  if (body !== undefined) headers["Content-Type"] = "application/json"
   if (token) headers.Authorization = `Bearer ${token}`
+
+  let payload: BodyInit | undefined
+  if (body !== undefined) {
+    if (typeof FormData !== "undefined" && body instanceof FormData) {
+      // Let the browser set multipart boundary — do not set Content-Type
+      payload = body
+    } else {
+      headers["Content-Type"] = "application/json"
+      payload = JSON.stringify(body)
+    }
+  }
 
   const res = await fetch(buildUrl(path, query), {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body: payload,
     cache,
   })
 

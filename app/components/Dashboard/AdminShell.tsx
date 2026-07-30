@@ -5,14 +5,18 @@ import {
   LayoutDashboardIcon,
   LogOutIcon,
   TagIcon,
+  UserRoundIcon,
   UsersIcon,
 } from "lucide-react"
 import type { ReactNode } from "react"
 
+import { useAuth } from "@/app/providers/AuthProvider"
 import { useAdminCategoriesQuery } from "@/lib/admin/use-admin-categories"
+import { useAdminUsersQuery } from "@/lib/admin/use-admin-users"
+import { initialsFromName } from "@/lib/auth/types"
 import DashShell from "./DashShell"
 
-type AdminPage = "overview" | "categories" | "disputes"
+type AdminPage = "overview" | "users" | "categories" | "disputes"
 
 export default function AdminShell({
   page,
@@ -23,8 +27,11 @@ export default function AdminShell({
   children: ReactNode
   categoryCount?: number
 }) {
+  const { user } = useAuth()
   const categoriesQuery = useAdminCategoriesQuery()
-  const count = categoryCount ?? categoriesQuery.data?.length ?? 8
+  const usersQuery = useAdminUsersQuery()
+  const count = categoryCount ?? categoriesQuery.data?.length ?? 0
+  const userCount = usersQuery.data?.length ?? 0
 
   const groups = [
     {
@@ -38,16 +45,16 @@ export default function AdminShell({
         },
         {
           label: "Users",
-          href: "/dashboard/admin#users",
+          href: "/dashboard/admin/users",
           icon: <UsersIcon />,
-          pill: 18,
-          active: false,
+          pill: userCount || undefined,
+          active: page === "users",
         },
         {
           label: "Categories",
           href: "/dashboard/admin/categories",
           icon: <TagIcon />,
-          pill: count,
+          pill: count || undefined,
           active: page === "categories",
         },
         {
@@ -61,16 +68,25 @@ export default function AdminShell({
     },
     {
       label: "Account",
-      items: [{ label: "Log out", href: "#", icon: <LogOutIcon /> }],
+      items: [
+        {
+          label: "My profile",
+          href: "/profile",
+          icon: <UserRoundIcon />,
+        },
+        { label: "Log out", href: "#", icon: <LogOutIcon /> },
+      ],
     },
   ]
 
   return (
     <DashShell
       role="ADMIN"
-      displayName="Platform admin"
+      displayName={user?.name || "Platform admin"}
       roleLabel="Admin"
-      initials="AD"
+      initials={
+        user?.initials || initialsFromName(user?.name || "Platform admin")
+      }
       online
       groups={groups}
     >

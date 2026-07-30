@@ -8,6 +8,7 @@ import {
   LayoutDashboardIcon,
   LogOutIcon,
   StarIcon,
+  UserRoundIcon,
   WalletIcon,
   WrenchIcon,
 } from "lucide-react"
@@ -173,7 +174,14 @@ export default function TechnicianDashboard() {
     },
     {
       label: "Account",
-      items: [{ label: "Log out", href: "#", icon: <LogOutIcon /> }],
+      items: [
+        {
+          label: "My profile",
+          href: "/profile",
+          icon: <UserRoundIcon />,
+        },
+        { label: "Log out", href: "#", icon: <LogOutIcon /> },
+      ],
     },
   ]
 

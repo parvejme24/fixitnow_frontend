@@ -5,6 +5,8 @@ export type AdminUser = {
   name: string
   email: string
   initials: string
+  /** Absolute or relative profile image URL */
+  image?: string | null
   role: "Customer" | "Technician" | "Admin"
   joined: string
   bookings: number

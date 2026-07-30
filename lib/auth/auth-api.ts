@@ -23,11 +23,22 @@ function pickString(...values: unknown[]) {
   return null
 }
 
-function normalizeUser(raw: unknown): AuthUser {
+export function normalizeUser(raw: unknown): AuthUser {
   const obj = asRecord(raw) ?? {}
   const roleRaw = String(obj.role ?? "CUSTOMER").toUpperCase()
   const role =
     roleRaw === "TECHNICIAN" || roleRaw === "ADMIN" ? roleRaw : "CUSTOMER"
+
+  const image =
+    pickString(
+      obj.image,
+      obj.avatar,
+      obj.profileImage,
+      obj.profilePic,
+      obj.photo,
+      asRecord(obj.profile)?.image,
+      asRecord(obj.profile)?.avatar
+    ) ?? null
 
   return {
     id: String(obj.id ?? ""),
@@ -36,6 +47,7 @@ function normalizeUser(raw: unknown): AuthUser {
     phone: (obj.phone as string | null | undefined) ?? null,
     role,
     initials: (obj.initials as string | null | undefined) ?? null,
+    image,
     isActive: typeof obj.isActive === "boolean" ? obj.isActive : undefined,
     createdAt: typeof obj.createdAt === "string" ? obj.createdAt : undefined,
     updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : undefined,
@@ -103,11 +115,24 @@ export async function updateMeRequest(
   input: UpdateMeInput,
   token?: string | null
 ) {
-  const res = await apiPatch<unknown>(
-    "/auth/me",
-    input,
-    withAuthToken(token)
-  )
+  const auth = withAuthToken(token)
+  let body: FormData | Record<string, string>
+
+  if (input.image instanceof File) {
+    const form = new FormData()
+    if (input.name !== undefined) form.append("name", input.name)
+    if (input.phone !== undefined) form.append("phone", input.phone)
+    if (input.initials !== undefined) form.append("initials", input.initials)
+    form.append("image", input.image)
+    body = form
+  } else {
+    body = {}
+    if (input.name !== undefined) body.name = input.name
+    if (input.phone !== undefined) body.phone = input.phone
+    if (input.initials !== undefined) body.initials = input.initials
+  }
+
+  const res = await apiPatch<unknown>("/auth/me", body, auth)
   const data = asRecord(res.data)
   const userRaw = data?.user ?? res.data
   return normalizeUser(userRaw)

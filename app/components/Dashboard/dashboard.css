@@ -1572,6 +1572,205 @@
   font-size: 1.25rem;
 }
 
+.account-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.account-detail__grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--paper);
+}
+
+.account-detail__grid span {
+  font-size: 0.75rem;
+  color: var(--steel-400);
+}
+
+.account-detail__grid strong {
+  font-size: 0.95rem;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hivis);
+  color: var(--ink);
+}
+
+.user-avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.user-avatar__fallback {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.user-role {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.user-role--customer {
+  background: rgba(61, 143, 224, 0.14);
+  color: #1f6bb5;
+}
+
+.user-role--tech {
+  background: rgba(18, 184, 134, 0.14);
+  color: #0a7a58;
+}
+
+.user-role--admin {
+  background: rgba(124, 107, 255, 0.16);
+  color: #4f3fd6;
+}
+
+.user-role-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 148px;
+}
+
+.user-role-select__input {
+  height: 36px;
+  padding-right: 28px;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.user-role-select__input:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.user-role-select__spin {
+  position: absolute;
+  right: 10px;
+  color: var(--steel-400);
+  pointer-events: none;
+}
+
+.users-table .cell-person {
+  gap: 12px;
+}
+
+.table-wrap--scroll {
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  background: transparent;
+}
+
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  border: 1px solid rgba(226, 232, 237, 0.9);
+  border-radius: 12px;
+  background: white;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(110, 128, 145, 0.45) transparent;
+}
+
+.table-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(110, 128, 145, 0.4);
+  border-radius: 999px;
+}
+
+.users-table {
+  min-width: 760px;
+  width: 100%;
+}
+
+.users-table th,
+.users-table td {
+  white-space: nowrap;
+}
+
+.users-table .cell-stack {
+  min-width: 0;
+}
+
+.users-table .cell-stack strong,
+.users-table .cell-stack small {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-filters--users {
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+}
+
+.table-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 4px 4px;
+}
+
+.pager--nums button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+}
+
+@media (max-width: 700px) {
+  .admin-filters--users {
+    grid-template-columns: 1fr;
+  }
+
+  .table-foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .table-foot .pager {
+    justify-content: center;
+  }
+
+  .users-table {
+    min-width: 680px;
+  }
+}
+
 .dash-avatar--lg {
   width: 64px;
   height: 64px;
