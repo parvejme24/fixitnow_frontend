@@ -4,6 +4,8 @@ export type Category = {
   id: CategoryId
   name: string
   slug: string
+  icon: string
+  isVisible: boolean
   sortOrder: number
   jobsDone: number
   serviceCount: number

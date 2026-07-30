@@ -43,6 +43,8 @@ export function normalizeCategory(raw: unknown): Category {
     id: str(obj.id),
     name: str(obj.name, "Category"),
     slug: str(obj.slug),
+    icon: str(obj.icon, "🔧"),
+    isVisible: bool(obj.isVisible ?? obj.active ?? obj.isActive, true),
     sortOrder: num(obj.sortOrder),
     jobsDone: num(obj.jobsDone),
     serviceCount: num(obj.serviceCount),

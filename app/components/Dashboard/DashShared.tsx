@@ -2,10 +2,12 @@
 
 import {
   useCallback,
+  useEffect,
   useState,
   type ReactNode,
   type RefObject,
 } from "react"
+import { createPortal } from "react-dom"
 
 import { useCountUp } from "./DashShell"
 
@@ -100,19 +102,24 @@ export function DashTabs({
 export function DashToastHost({
   toasts,
 }: {
-  toasts: { id: string; title: string; message: string }[]
+  toasts: { id: string; title: string; message: string; tone?: "error" | "default" }[]
 }) {
-  if (!toasts.length) return null
-  return (
+  if (!toasts.length || typeof document === "undefined") return null
+  return createPortal(
     <div className="dash-toasts" aria-live="polite">
       {toasts.map((t) => (
-        <div key={t.id} className="dash-toast">
+        <div
+          key={t.id}
+          className={`dash-toast${t.tone === "error" ? " dash-toast--error" : ""}`}
+          role="status"
+        >
           <strong>{t.title}</strong>
           <span>{t.message}</span>
           <i className="dash-toast__bar" />
         </div>
       ))}
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -129,34 +136,57 @@ export function DashModal({
   onClose: () => void
   actions: ReactNode
 }) {
-  if (!open) return null
-  return (
-    <div className="dash-modal" role="dialog" aria-modal="true">
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.body.style.overflow = prev
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [open, onClose])
+
+  if (!open || typeof document === "undefined") return null
+
+  return createPortal(
+    <div className="dash-modal" role="dialog" aria-modal="true" aria-label={title}>
       <button
         type="button"
         className="dash-modal__backdrop"
         aria-label="Close"
         onClick={onClose}
       />
-      <div className="dash-modal__panel">
+      <div
+        className="dash-modal__panel"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         <h3 className="dash-modal__title">{title}</h3>
         <div className="dash-modal__body">{children}</div>
         <div className="dash-modal__actions">{actions}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
 export function useDashToasts() {
   const [toasts, setToasts] = useState<
-    { id: string; title: string; message: string }[]
+    { id: string; title: string; message: string; tone?: "error" | "default" }[]
   >([])
-  const pushToast = useCallback((title: string, message: string) => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-    setToasts((prev) => [...prev, { id, title, message }])
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id))
-    }, 3600)
-  }, [])
+  const pushToast = useCallback(
+    (title: string, message: string, tone: "error" | "default" = "default") => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      setToasts((prev) => [...prev, { id, title, message, tone }])
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id))
+      }, 3600)
+    },
+    []
+  )
   return { toasts, pushToast }
 }

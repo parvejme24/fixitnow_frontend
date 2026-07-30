@@ -190,7 +190,13 @@ export default function CategoriesSection() {
                   style={{ transitionDelay: `${index * 55}ms` }}
                 >
                   <span className="cats-icon">
-                    <CategoryIcon type={iconForCategory(cat.slug, cat.name)} />
+                    {cat.icon && /\p{Extended_Pictographic}/u.test(cat.icon) ? (
+                      <span aria-hidden style={{ fontSize: 21, lineHeight: 1 }}>
+                        {cat.icon}
+                      </span>
+                    ) : (
+                      <CategoryIcon type={iconForCategory(cat.slug, cat.name)} />
+                    )}
                   </span>
                   <b className="display-sm">{cat.name}</b>
                   <span className="cats-meta">

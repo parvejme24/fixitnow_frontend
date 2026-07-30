@@ -35,7 +35,9 @@ function listPayload<T>(
 
 export async function fetchCategories() {
   const res = await apiGet<unknown>("/categories")
-  return listPayload(res, normalizeCategory).items as Category[]
+  return listPayload(res, normalizeCategory).items.filter(
+    (cat) => cat.isVisible !== false
+  ) as Category[]
 }
 
 export async function fetchCategory(id: string) {

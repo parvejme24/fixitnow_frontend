@@ -73,6 +73,33 @@ export function dashboardForRole(role: AuthRole | UiRole) {
   return "/bookings"
 }
 
+/** Only allow post-login redirects the user's role may open. */
+export function safeReturnPath(
+  role: AuthRole | UiRole,
+  next: string | null | undefined
+) {
+  const fallback = dashboardForRole(role)
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return fallback
+
+  const path = next.split("?")[0].split("#")[0]
+  const r = role.toUpperCase()
+
+  if (path === "/dashboard/admin" || path.startsWith("/dashboard/admin/")) {
+    return r === "ADMIN" ? next : fallback
+  }
+  if (
+    path === "/dashboard/technician" ||
+    path.startsWith("/dashboard/technician/")
+  ) {
+    return r === "TECHNICIAN" ? next : fallback
+  }
+  if (path === "/bookings" || path.startsWith("/bookings/")) {
+    return r === "CUSTOMER" ? next : fallback
+  }
+
+  return next
+}
+
 export function initialsFromName(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   if (!parts.length) return "FN"

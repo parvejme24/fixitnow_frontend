@@ -23,7 +23,9 @@ export function useCategories() {
   return useQuery({
     queryKey: catalogueKeys.categories(),
     queryFn: fetchCategories,
-    staleTime: 60_000,
+    staleTime: 15_000,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   })
 }
 

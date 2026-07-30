@@ -11,7 +11,7 @@ import {
 } from "lucide-react"
 
 import { useAuth } from "@/app/providers/AuthProvider"
-import { dashboardForRole } from "@/lib/auth/types"
+import { safeReturnPath } from "@/lib/auth/types"
 import { getAuthErrorMessage } from "@/lib/auth/errors"
 
 import AuthShell from "../AuthShell/AuthShell"
@@ -139,9 +139,7 @@ function LoginForm() {
         { email: email.trim(), password },
         keepSignedIn
       )
-      const next = searchParams.get("next")
-      const destination =
-        next && next.startsWith("/") ? next : dashboardForRole(user.role)
+      const destination = safeReturnPath(user.role, searchParams.get("next"))
 
       if (!reduceMotion) launchAuthConfetti()
       pushToast({

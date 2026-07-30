@@ -3,5 +3,5 @@ export default function DashboardLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
-  return <div className="min-h-full flex-1">{children}</div>
+  return <div className="min-h-dvh w-full flex-1">{children}</div>
 }

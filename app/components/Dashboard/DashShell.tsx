@@ -2,8 +2,9 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useRef, type ReactNode } from "react"
+import { useEffect, useId, useRef, useState, type ReactNode } from "react"
 import { useReducedMotion } from "framer-motion"
+import { MenuIcon, XIcon } from "lucide-react"
 
 import { useAuth } from "@/app/providers/AuthProvider"
 import { initialsFromName } from "@/lib/auth/types"
@@ -30,6 +31,7 @@ type DashShellProps = {
   displayName: string
   roleLabel: string
   online?: boolean
+  initials?: string
   groups: DashNavGroup[]
   children: ReactNode
 }
@@ -109,13 +111,30 @@ export default function DashShell({
   displayName,
   roleLabel,
   online,
+  initials: initialsProp,
   groups,
   children,
 }: DashShellProps) {
   const pathname = usePathname()
   const { logout } = useAuth()
-  const initials = initialsFromName(displayName)
+  const initials = initialsProp || initialsFromName(displayName)
   const pageRef = useRef<HTMLDivElement | null>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const sideId = useId()
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false)
+    }
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.body.style.overflow = prev
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [menuOpen])
 
   useEffect(() => {
     const root = pageRef.current
@@ -140,78 +159,134 @@ export default function DashShell({
     return () => root.removeEventListener("click", onClick)
   }, [])
 
+  const closeMenu = () => setMenuOpen(false)
+
+  const renderNavItem = (item: DashNavItem) => {
+    const active =
+      item.active ??
+      (item.href !== "#" &&
+        (pathname === item.href || pathname.startsWith(`${item.href}/`)))
+
+    if (item.onClick) {
+      return (
+        <button
+          key={item.label}
+          type="button"
+          className={`dash-link${active ? " is-active" : ""}`}
+          onClick={() => {
+            item.onClick?.()
+            closeMenu()
+          }}
+        >
+          {item.icon}
+          <span>{item.label}</span>
+          {item.pill != null ? (
+            <span className="dash-link__pill">{item.pill}</span>
+          ) : null}
+        </button>
+      )
+    }
+
+    if (item.label === "Log out") {
+      return (
+        <button
+          key={item.label}
+          type="button"
+          className="dash-link"
+          onClick={() =>
+            void logout().then(() => {
+              window.location.href = "/"
+            })
+          }
+        >
+          {item.icon}
+          <span>{item.label}</span>
+        </button>
+      )
+    }
+
+    return (
+      <Link
+        key={item.label + item.href}
+        href={item.href}
+        className={`dash-link${active ? " is-active" : ""}`}
+        onClick={closeMenu}
+      >
+        {item.icon}
+        <span>{item.label}</span>
+        {item.pill != null ? (
+          <span className="dash-link__pill">{item.pill}</span>
+        ) : null}
+      </Link>
+    )
+  }
+
   return (
-    <div className="dash-page" data-role={role} ref={pageRef}>
+    <div
+      className={`dash-page${menuOpen ? " is-menu-open" : ""}`}
+      data-role={role}
+      ref={pageRef}
+    >
+      <div className="dash-topbar">
+        <button
+          type="button"
+          className="dash-menu-btn"
+          aria-label={menuOpen ? "Close menu" : "Open menu"}
+          aria-expanded={menuOpen}
+          aria-controls={sideId}
+          onClick={() => setMenuOpen((v) => !v)}
+        >
+          {menuOpen ? <XIcon size={22} /> : <MenuIcon size={22} />}
+        </button>
+        <div className="dash-topbar__brand">
+          <span className="dash-avatar-sm">{initials}</span>
+          <div>
+            <strong>{displayName}</strong>
+            <small>{roleLabel}</small>
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="dash-backdrop"
+        aria-label="Close menu"
+        tabIndex={menuOpen ? 0 : -1}
+        onClick={closeMenu}
+      />
+
       <div className="dash">
-        <aside className="dash-side">
-          <div className="dash-user">
-            <span className="dash-avatar-sm">{initials}</span>
-            <div>
-              <div className="dash-user__name">
-                {displayName}
-                {online ? <span className="dash-user__online" /> : null}
+        <aside
+          id={sideId}
+          className={`dash-side${menuOpen ? " is-open" : ""}`}
+          aria-hidden={false}
+        >
+          <div className="dash-side__head">
+            <div className="dash-user">
+              <span className="dash-avatar-sm">{initials}</span>
+              <div>
+                <div className="dash-user__name">
+                  {displayName}
+                  {online ? <span className="dash-user__online" /> : null}
+                </div>
+                <div className="dash-user__role">{roleLabel}</div>
               </div>
-              <div className="dash-user__role">{roleLabel}</div>
             </div>
+            <button
+              type="button"
+              className="dash-side__close"
+              aria-label="Close sidebar"
+              onClick={closeMenu}
+            >
+              <XIcon size={18} />
+            </button>
           </div>
 
           {groups.map((group) => (
-            <div key={group.label}>
+            <div key={group.label} className="dash-side__group">
               <div className="dash-sec">{group.label}</div>
               <nav className="dash-nav" aria-label={group.label}>
-                {group.items.map((item) => {
-                  const active =
-                    item.active ??
-                    (item.href !== "#" &&
-                      (pathname === item.href ||
-                        pathname.startsWith(`${item.href}/`)))
-                  if (item.onClick) {
-                    return (
-                      <button
-                        key={item.label}
-                        type="button"
-                        className={`dash-link${active ? " is-active" : ""}`}
-                        onClick={item.onClick}
-                      >
-                        {item.icon}
-                        <span>{item.label}</span>
-                        {item.pill != null ? (
-                          <span className="dash-link__pill">{item.pill}</span>
-                        ) : null}
-                      </button>
-                    )
-                  }
-                  if (item.label === "Log out") {
-                    return (
-                      <button
-                        key={item.label}
-                        type="button"
-                        className="dash-link"
-                        onClick={() =>
-                          void logout().then(() => {
-                            window.location.href = "/"
-                          })
-                        }
-                      >
-                        {item.icon}
-                        <span>{item.label}</span>
-                      </button>
-                    )
-                  }
-                  return (
-                    <Link
-                      key={item.label + item.href}
-                      href={item.href}
-                      className={`dash-link${active ? " is-active" : ""}`}
-                    >
-                      {item.icon}
-                      <span>{item.label}</span>
-                      {item.pill != null ? (
-                        <span className="dash-link__pill">{item.pill}</span>
-                      ) : null}
-                    </Link>
-                  )
-                })}
+                {group.items.map((item) => renderNavItem(item))}
               </nav>
             </div>
           ))}

@@ -203,6 +203,16 @@ export default function BrowseServices() {
     }
   }, [initialCat, categories])
 
+  // Drop filters for categories that were hidden (live update, no reload)
+  useEffect(() => {
+    if (!categoriesQuery.isFetched) return
+    const visible = new Set(categories.map((c) => c.id))
+    setCats((prev) => {
+      const next = prev.filter((id) => visible.has(id))
+      return next.length === prev.length ? prev : next
+    })
+  }, [categories, categoriesQuery.isFetched])
+
   const services = useMemo(
     () =>
       filterServices(

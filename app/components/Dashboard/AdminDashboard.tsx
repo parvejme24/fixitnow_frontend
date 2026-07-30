@@ -1,30 +1,32 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState, type RefObject } from "react"
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import {
   AlertTriangleIcon,
-  FolderIcon,
+  ChevronRightIcon,
   InboxIcon,
-  LayoutDashboardIcon,
-  LogOutIcon,
+  SearchIcon,
   UsersIcon,
   WalletIcon,
 } from "lucide-react"
 import { useReducedMotion } from "framer-motion"
 
-import { useAuth } from "@/app/providers/AuthProvider"
 import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
 import {
-  ADMIN_CATEGORIES,
   ADMIN_STATUS_COUNTS,
-  ADMIN_USERS,
+  BAN_REASONS,
+  BUSIEST_CATEGORIES,
+  DECISION_QUEUE,
+  formatTaka,
   formatTakaK,
   GROSS_MONTHS,
-  type AccountStatus,
-  type DashUser,
-} from "@/app/lib/dashboard-data"
-import DashShell, { useReveal } from "./DashShell"
+  lifetimeValue,
+  type AdminUser,
+} from "@/app/lib/admin-data"
+import { useAdminUsers } from "@/app/lib/admin-store"
+import AdminShell from "./AdminShell"
+import { useReveal } from "./DashShell"
 import {
   DashModal,
   DashToastHost,
@@ -35,24 +37,39 @@ import {
 
 const PAGE_SIZE = 8
 
+function useDebounced<T>(value: T, ms: number) {
+  const [v, setV] = useState(value)
+  useEffect(() => {
+    const id = window.setTimeout(() => setV(value), ms)
+    return () => window.clearTimeout(id)
+  }, [value, ms])
+  return v
+}
+
 export default function AdminDashboard() {
-  const { user } = useAuth()
-  const name = user?.name || "Platform admin"
+  const { users, setUsers } = useAdminUsers()
   const reduceMotion = useReducedMotion() ?? false
   const { toasts, pushToast } = useDashToasts()
-  const [users, setUsers] = useState<DashUser[]>(ADMIN_USERS)
   const [range, setRange] = useState("30")
   const [q, setQ] = useState("")
-  const [roleFilter, setRoleFilter] = useState("All")
-  const [statusFilter, setStatusFilter] = useState("All")
+  const debouncedQ = useDebounced(q, 200)
+  const [roleFilter, setRoleFilter] = useState("Every role")
+  const [statusFilter, setStatusFilter] = useState("Any status")
   const [page, setPage] = useState(0)
+  const [loading, setLoading] = useState(true)
   const [barsReady, setBarsReady] = useState(false)
-  const [actionUser, setActionUser] = useState<{
-    id: string
-    next: AccountStatus
-  } | null>(null)
+  const [leavingIds, setLeavingIds] = useState<string[]>([])
+  const [banUser, setBanUser] = useState<AdminUser | null>(null)
+  const [banReason, setBanReason] = useState<string>(BAN_REASONS[0])
+  const [viewUser, setViewUser] = useState<AdminUser | null>(null)
   const barsOn = reduceMotion || barsReady
-  const revealRef = useReveal([barsOn, page])
+  const revealRef = useReveal([barsOn, page, loading])
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setLoading(false), 750)
+    return () => window.clearTimeout(id)
+  }, [])
 
   useEffect(() => {
     const id = window.setTimeout(() => setBarsReady(true), reduceMotion ? 0 : 180)
@@ -60,84 +77,61 @@ export default function AdminDashboard() {
   }, [reduceMotion])
 
   const maxGross = Math.max(...GROSS_MONTHS.map((m) => m.value))
-  const maxCat = Math.max(...ADMIN_CATEGORIES.map((c) => c.jobs))
-  const maxStatus = Math.max(...ADMIN_STATUS_COUNTS.map((s) => s.count))
+  const maxCat = Math.max(...BUSIEST_CATEGORIES.map((c) => c.jobs))
+  const statusTotal = ADMIN_STATUS_COUNTS.reduce((s, x) => s + x.count, 0)
 
   const filtered = useMemo(() => {
-    const query = q.trim().toLowerCase()
+    const query = debouncedQ.trim().toLowerCase()
     return users.filter((u) => {
       if (query && !`${u.name} ${u.email}`.toLowerCase().includes(query))
         return false
-      if (roleFilter !== "All" && u.role !== roleFilter) return false
-      if (statusFilter !== "All" && u.status !== statusFilter) return false
+      if (roleFilter !== "Every role" && u.role !== roleFilter) return false
+      if (statusFilter !== "Any status" && u.status !== statusFilter)
+        return false
       return true
     })
-  }, [users, q, roleFilter, statusFilter])
+  }, [users, debouncedQ, roleFilter, statusFilter])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, pageCount - 1)
-  const pageRows = filtered.slice(
-    safePage * PAGE_SIZE,
-    safePage * PAGE_SIZE + PAGE_SIZE
-  )
-  const applyStatus = () => {
-    if (!actionUser) return
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === actionUser.id ? { ...u, status: actionUser.next } : u
-      )
-    )
-    const row = users.find((u) => u.id === actionUser.id)
-    pushToast(
-      `Account ${actionUser.next.toLowerCase()}`,
-      row ? `${row.name} is now ${actionUser.next}.` : "Updated."
-    )
-    setActionUser(null)
+  const start = safePage * PAGE_SIZE
+  const pageRows = filtered.slice(start, start + PAGE_SIZE)
+  const showingFrom = filtered.length ? start + 1 : 0
+  const showingTo = Math.min(start + PAGE_SIZE, filtered.length)
+
+  const resetFilters = () => {
+    setQ("")
+    setRoleFilter("Every role")
+    setStatusFilter("Any status")
+    setPage(0)
   }
 
-  const groups = [
-    {
-      label: "Oversight",
-      items: [
-        {
-          label: "Overview",
-          href: "/dashboard/admin",
-          icon: <LayoutDashboardIcon />,
-          active: true,
-        },
-        {
-          label: "Users",
-          href: "/dashboard/admin#users",
-          icon: <UsersIcon />,
-          pill: users.length,
-        },
-        {
-          label: "Categories",
-          href: "/services",
-          icon: <FolderIcon />,
-          pill: 8,
-        },
-        {
-          label: "Disputes",
-          href: "/dashboard/admin#disputes",
-          icon: <AlertTriangleIcon />,
-          pill: 3,
-        },
-      ],
-    },
-    {
-      label: "Account",
-      items: [{ label: "Log out", href: "#", icon: <LogOutIcon /> }],
-    },
-  ]
+  const confirmBan = () => {
+    if (!banUser) return
+    const id = banUser.id
+    const name = banUser.name
+    setBanUser(null)
+    setLeavingIds((prev) => [...prev, id])
+    window.setTimeout(() => {
+      setUsers((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, status: "Banned" } : u))
+      )
+      setLeavingIds((prev) => prev.filter((x) => x !== id))
+      pushToast("Account banned", `${name} can no longer sign in.`)
+    }, 320)
+  }
+
+  const unban = (u: AdminUser) => {
+    setUsers((prev) =>
+      prev.map((row) =>
+        row.id === u.id ? { ...row, status: "Active" } : row
+      )
+    )
+    pushToast("Account restored", `${u.name} can sign in again.`)
+  }
 
   return (
-    <DashShell
-      role="ADMIN"
-      displayName={name}
-      roleLabel="Admin"
-      groups={groups}
-    >
+    <AdminShell page="overview">
       <div ref={revealRef as RefObject<HTMLDivElement>}>
         <header className="dash-head">
           <div>
@@ -154,12 +148,15 @@ export default function AdminDashboard() {
               onValueChange={setRange}
               options={[
                 { value: "30", label: "Last 30 days" },
-                { value: "quarter", label: "This quarter" },
-                { value: "ytd", label: "YTD" },
+                { value: "quarter", label: "Last quarter" },
+                { value: "ytd", label: "Year to date" },
               ]}
               triggerClassName="min-w-[10.5rem]"
             />
-            <Link href="/services" className="dash-btn dash-btn--ghost">
+            <Link
+              href="/dashboard/admin/categories"
+              className="dash-btn dash-btn--ghost"
+            >
               Categories
             </Link>
           </div>
@@ -184,7 +181,7 @@ export default function AdminDashboard() {
           <StatCard
             icon={<WalletIcon size={18} />}
             value={4412000}
-            label="Gross value 30 days"
+            label="Gross value, 30 days"
             delta="+18.5%"
             variant="signal"
             prefix="৳"
@@ -206,18 +203,20 @@ export default function AdminDashboard() {
             <div className="dash-card__head">
               <div>
                 <h2 className="dash-card__title">Gross booking value</h2>
-                <p style={{ margin: "6px 0 0", color: "var(--steel-400)", fontSize: "0.85rem" }}>
-                  Six months, in thousands of taka
-                </p>
+                <p className="dash-card__sub">Six months, in thousands of taka</p>
               </div>
-              <span className="badge-soft">+18.5% vs June</span>
+              <span className="badge-soft badge-soft--progress">
+                +18.5% vs June
+              </span>
             </div>
             <div className="chart">
               {GROSS_MONTHS.map((m) => (
                 <div key={m.label} className="chart__col">
                   <div
                     className={`chart__bar${barsOn ? " is-on" : ""}`}
-                    style={{ ["--h" as string]: `${(m.value / maxGross) * 100}%` }}
+                    style={{
+                      ["--h" as string]: `${(m.value / maxGross) * 100}%`,
+                    }}
                     data-tip={formatTakaK(m.value)}
                   />
                   <span className="chart__label">{m.label}</span>
@@ -229,14 +228,14 @@ export default function AdminDashboard() {
           <section className="dash-card" data-reveal>
             <h2 className="dash-card__title">Busiest categories</h2>
             <div className="rank-list" style={{ marginTop: 14 }}>
-              {ADMIN_CATEGORIES.map((c, i) => (
+              {BUSIEST_CATEGORIES.map((c, i) => (
                 <div key={c.name} className="rank-row">
                   <span className="rank-row__n">
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: 6 }}>{c.name}</div>
-                    <div className="progress-track">
+                    <div className="progress-track progress-track--thin">
                       <div
                         className={`progress-fill${barsOn ? " is-on" : ""}`}
                         style={{
@@ -245,7 +244,7 @@ export default function AdminDashboard() {
                       />
                     </div>
                   </div>
-                  <strong style={{ fontFamily: "var(--font-mono)", fontSize: "0.78rem" }}>
+                  <strong className="rank-row__jobs">
                     {c.jobs.toLocaleString("en-IN")}
                   </strong>
                 </div>
@@ -255,20 +254,20 @@ export default function AdminDashboard() {
         </div>
 
         <div className="dash-grid-split">
-          <section className="dash-card" data-reveal id="disputes">
-            <h2 className="dash-card__title">Bookings by status</h2>
+          <section className="dash-card" data-reveal>
+            <h2 className="dash-card__title">Bookings by status, right now</h2>
             <div className="progress-list" style={{ marginTop: 14 }}>
               {ADMIN_STATUS_COUNTS.map((s) => (
                 <div key={s.status}>
                   <div className="progress-item__label">
                     <StatusBadge status={s.status} />
-                    <strong>{s.count}</strong>
+                    <strong className="mono-count">{s.count}</strong>
                   </div>
                   <div className="progress-track">
                     <div
                       className={`progress-fill${s.status === "COMPLETED" ? " progress-fill--signal" : ""}${s.status === "PAID" ? " progress-fill--sky" : ""}${barsOn ? " is-on" : ""}`}
                       style={{
-                        ["--w" as string]: `${(s.count / maxStatus) * 100}%`,
+                        ["--w" as string]: `${(s.count / statusTotal) * 100}%`,
                       }}
                     />
                   </div>
@@ -280,33 +279,8 @@ export default function AdminDashboard() {
           <section className="dash-card" data-reveal>
             <h2 className="dash-card__title">Needs a decision</h2>
             <div style={{ marginTop: 12 }}>
-              {[
-                {
-                  title: "Refund dispute FIX-4698",
-                  detail: "Customer claims incomplete AC gas refill",
-                  tag: "Urgent",
-                  tone: "urgent",
-                },
-                {
-                  title: "Verification · Milon Das",
-                  detail: "ID documents waiting for review",
-                  tag: "Pending",
-                  tone: "pending",
-                },
-                {
-                  title: "Solar category proposal",
-                  detail: "New trade suggested by 4 technicians",
-                  tag: "New",
-                  tone: "new",
-                },
-                {
-                  title: "Tanvir cancellation pattern",
-                  detail: "3 late cancels in 10 days",
-                  tag: "Review",
-                  tone: "review",
-                },
-              ].map((row) => (
-                <div key={row.title} className="queue-row">
+              {DECISION_QUEUE.map((row) => (
+                <div key={row.id} className="queue-row">
                   <div>
                     <p className="queue-row__title">{row.title}</p>
                     <p className="queue-row__detail">{row.detail}</p>
@@ -322,23 +296,21 @@ export default function AdminDashboard() {
           <div className="dash-card__head">
             <h2 className="dash-card__title">All accounts</h2>
           </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1.4fr 1fr 1fr",
-              gap: 10,
-              marginBottom: 14,
-            }}
-          >
-            <input
-              className="dash-input"
-              placeholder="Search name or email"
-              value={q}
-              onChange={(e) => {
-                setQ(e.target.value)
-                setPage(0)
-              }}
-            />
+
+          <div className="admin-filters">
+            <label className="dash-search">
+              <SearchIcon size={16} />
+              <input
+                ref={searchRef}
+                className="dash-input"
+                placeholder="Search name or email"
+                value={q}
+                onChange={(e) => {
+                  setQ(e.target.value)
+                  setPage(0)
+                }}
+              />
+            </label>
             <BrowseSelect
               value={roleFilter}
               onValueChange={(v) => {
@@ -346,7 +318,7 @@ export default function AdminDashboard() {
                 setPage(0)
               }}
               options={[
-                { value: "All", label: "All roles" },
+                { value: "Every role", label: "Every role" },
                 { value: "Customer", label: "Customer" },
                 { value: "Technician", label: "Technician" },
                 { value: "Admin", label: "Admin" },
@@ -359,7 +331,7 @@ export default function AdminDashboard() {
                 setPage(0)
               }}
               options={[
-                { value: "All", label: "All statuses" },
+                { value: "Any status", label: "Any status" },
                 { value: "Active", label: "Active" },
                 { value: "Suspended", label: "Suspended" },
                 { value: "Banned", label: "Banned" },
@@ -368,130 +340,241 @@ export default function AdminDashboard() {
           </div>
 
           <div className="table-wrap" style={{ border: 0, boxShadow: "none" }}>
-            <table className="dash-table">
-              <thead>
-                <tr>
-                  <th>Account</th>
-                  <th>Role</th>
-                  <th>Joined</th>
-                  <th>Bookings</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pageRows.map((u) => (
-                  <tr key={u.id}>
-                    <td>
-                      <div className="cell-person">
-                        <span className="dash-avatar-sm">{u.initials}</span>
-                        <div className="cell-stack">
-                          <strong>{u.name}</strong>
-                          <small>{u.email}</small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{u.role}</td>
-                    <td>{u.joined}</td>
-                    <td>{u.bookings}</td>
-                    <td>
-                      <StatusBadge status={u.status} />
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        {u.status === "Active" && (
-                          <>
-                            <button
-                              type="button"
-                              className="dash-btn dash-btn--ghost dash-btn--sm"
-                              onClick={() =>
-                                setActionUser({ id: u.id, next: "Suspended" })
-                              }
-                            >
-                              Suspend
-                            </button>
-                            <button
-                              type="button"
-                              className="dash-btn dash-btn--ghost dash-btn--sm"
-                              onClick={() =>
-                                setActionUser({ id: u.id, next: "Banned" })
-                              }
-                            >
-                              Ban
-                            </button>
-                          </>
-                        )}
-                        {u.status !== "Active" && (
-                          <button
-                            type="button"
-                            className="dash-btn dash-btn--primary dash-btn--sm"
-                            onClick={() =>
-                              setActionUser({ id: u.id, next: "Active" })
-                            }
-                          >
-                            Restore
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+            {loading ? (
+              <div>
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="skel skel-row" />
                 ))}
-              </tbody>
-            </table>
-            <div className="table-foot">
-              <span>
-                Showing {pageRows.length} of {filtered.length} accounts
-              </span>
-              <div className="pager">
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="dash-empty">
+                <h3>No accounts match</h3>
+                <p>Try clearing search or resetting filters.</p>
                 <button
                   type="button"
-                  disabled={safePage === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="dash-btn dash-btn--ghost"
+                  onClick={resetFilters}
                 >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  disabled={safePage >= pageCount - 1}
-                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-                >
-                  Next
+                  Reset filters
                 </button>
               </div>
-            </div>
+            ) : (
+              <>
+                <table className="dash-table">
+                  <thead>
+                    <tr>
+                      <th>Account</th>
+                      <th>Role</th>
+                      <th>Joined</th>
+                      <th>Bookings</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageRows.map((u) => (
+                      <tr
+                        key={u.id}
+                        className={
+                          leavingIds.includes(u.id) ? "is-leaving" : undefined
+                        }
+                      >
+                        <td>
+                          <div className="cell-person">
+                            <span className="dash-avatar-sm">{u.initials}</span>
+                            <div className="cell-stack">
+                              <strong>{u.name}</strong>
+                              <small className="mono-muted">{u.email}</small>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="skill-tag">{u.role}</span>
+                        </td>
+                        <td className="mono-muted">{u.joined}</td>
+                        <td>
+                          <strong className="mono-count">{u.bookings}</strong>
+                        </td>
+                        <td>
+                          <StatusBadge status={u.status} />
+                        </td>
+                        <td>
+                          <div className="row-actions">
+                            {u.status === "Banned" ? (
+                              <button
+                                type="button"
+                                className="dash-btn dash-btn--signal dash-btn--sm"
+                                onClick={() => unban(u)}
+                              >
+                                Unban
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="dash-btn dash-btn--ghost dash-btn--sm"
+                                onClick={() => {
+                                  setBanReason(BAN_REASONS[0])
+                                  setBanUser(u)
+                                }}
+                              >
+                                Ban
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className="dash-icon-btn"
+                              aria-label={`View ${u.name}`}
+                              onClick={() => setViewUser(u)}
+                            >
+                              <ChevronRightIcon size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="table-foot">
+                  <span>
+                    Showing {showingFrom}–{showingTo} of {filtered.length}{" "}
+                    accounts
+                  </span>
+                  <div className="pager pager--nums">
+                    <button
+                      type="button"
+                      disabled={safePage === 0}
+                      onClick={() => setPage((p) => Math.max(0, p - 1))}
+                    >
+                      Prev
+                    </button>
+                    {Array.from({ length: pageCount }).map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={i === safePage ? "is-active" : undefined}
+                        onClick={() => setPage(i)}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      disabled={safePage >= pageCount - 1}
+                      onClick={() =>
+                        setPage((p) => Math.min(pageCount - 1, p + 1))
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </section>
       </div>
 
       <DashModal
-        open={Boolean(actionUser)}
-        title="Confirm account action"
-        onClose={() => setActionUser(null)}
+        open={Boolean(banUser)}
+        title={banUser ? `Ban ${banUser.name}?` : "Ban account"}
+        onClose={() => setBanUser(null)}
         actions={
           <>
             <button
               type="button"
               className="dash-btn dash-btn--ghost"
-              onClick={() => setActionUser(null)}
+              onClick={() => setBanUser(null)}
             >
               Cancel
             </button>
             <button
               type="button"
-              className="dash-btn dash-btn--primary"
-              onClick={applyStatus}
+              className="dash-btn dash-btn--danger"
+              onClick={confirmBan}
             >
-              Confirm
+              Ban account
             </button>
           </>
         }
       >
-        {actionUser
-          ? `Set this account to ${actionUser.next}? The change applies immediately.`
-          : null}
+        {banUser ? (
+          <div className="modal-stack">
+            <p>
+              This removes access immediately and cancels any open bookings on
+              the account.
+            </p>
+            <label className="field">
+              <span>Reason</span>
+              <BrowseSelect
+                value={banReason}
+                onValueChange={setBanReason}
+                options={BAN_REASONS.map((r) => ({ value: r, label: r }))}
+              />
+            </label>
+            <div className="warn-box">
+              <AlertTriangleIcon size={18} />
+              <p>
+                {banUser.bookings} bookings sit on this account. Anything unpaid
+                will be refunded automatically.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </DashModal>
+
+      <DashModal
+        open={Boolean(viewUser)}
+        title="Account detail"
+        onClose={() => setViewUser(null)}
+        actions={
+          <button
+            type="button"
+            className="dash-btn dash-btn--ghost"
+            onClick={() => setViewUser(null)}
+          >
+            Close
+          </button>
+        }
+      >
+        {viewUser ? (
+          <div className="account-detail">
+            <div className="account-detail__hero">
+              <span className="dash-avatar dash-avatar--lg">
+                {viewUser.initials}
+              </span>
+              <div>
+                <h4>{viewUser.name}</h4>
+                <p className="mono-muted">{viewUser.email}</p>
+                <StatusBadge status={viewUser.status} />
+              </div>
+            </div>
+            <div className="receipt-list">
+              <div>
+                <span>Role</span>
+                <strong>{viewUser.role}</strong>
+              </div>
+              <div>
+                <span>Joined</span>
+                <strong>{viewUser.joined}</strong>
+              </div>
+              <div>
+                <span>Bookings</span>
+                <strong>{viewUser.bookings}</strong>
+              </div>
+              <div>
+                <span>Disputes raised</span>
+                <strong>{viewUser.status === "Banned" ? 4 : 0}</strong>
+              </div>
+              <div>
+                <span>Lifetime value</span>
+                <strong>{formatTaka(lifetimeValue(viewUser.bookings))}</strong>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </DashModal>
 
       <DashToastHost toasts={toasts} />
-    </DashShell>
+    </AdminShell>
   )
 }
