@@ -7,6 +7,6 @@ export const metadata: Metadata = {
   description: "View and update your FixItNow account details.",
 }
 
-export default function ProfilePage() {
+export default function DashboardProfilePage() {
   return <ProfilePageView />
 }

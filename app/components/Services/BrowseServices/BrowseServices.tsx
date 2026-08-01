@@ -8,7 +8,6 @@ import {
   Grid2X2Icon,
   ListIcon,
   SearchIcon,
-  WrenchIcon,
 } from "lucide-react"
 
 import {
@@ -18,6 +17,8 @@ import {
   type Service,
 } from "@/app/lib/catalogue"
 import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
+import ServiceMedia from "@/app/components/Shared/ServiceMedia"
+import { formatServiceTag } from "@/lib/catalogue/normalize"
 import { useCategories, useServices } from "@/lib/catalogue/hooks"
 import "./BrowseServices.css"
 
@@ -92,10 +93,14 @@ function ServiceCard({
       style={{ animationDelay: `${index * 40}ms` }}
     >
       <div className="svc-card__media">
-        {service.tag && <span className="svc-card__badge">{service.tag}</span>}
-        <span className="svc-card__glyph">
-          <WrenchIcon size={42} />
-        </span>
+        {service.tag && (
+          <span className="svc-card__badge">{formatServiceTag(service.tag)}</span>
+        )}
+        <ServiceMedia
+          image={service.image}
+          title={service.title}
+          className="svc-card__photo"
+        />
         <span className="svc-card__price">{formatTaka(service.price)}</span>
       </div>
       <div className="svc-card__body">
@@ -127,7 +132,12 @@ function ServiceRow({
       style={{ animationDelay: `${index * 40}ms` }}
     >
       <div className="svc-row__icon">
-        <WrenchIcon size={26} />
+        <ServiceMedia
+          image={service.image}
+          title={service.title}
+          className="svc-row__photo"
+          glyphSize={22}
+        />
       </div>
       <div>
         <p className="svc-row__meta">

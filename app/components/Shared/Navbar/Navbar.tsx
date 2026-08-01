@@ -14,7 +14,7 @@ import {
 
 import BrandLogo from "@/app/components/Shared/BrandLogo"
 import { useAuth } from "@/app/providers/AuthProvider"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { AuthRole, AuthUser } from "@/lib/auth/types"
-import { initialsFromName } from "@/lib/auth/types"
+import { absoluteMediaUrl, initialsFromName } from "@/lib/auth/types"
 import { cn } from "@/lib/utils"
 
 const baseNavLinks = [
@@ -123,14 +123,18 @@ function UserAvatarButton({
   className?: string
 }) {
   const initials = user.initials || initialsFromName(user.name)
+  const image = absoluteMediaUrl(user.image)
 
   return (
     <Avatar
       className={cn(
-        "size-9 rounded-full bg-[#FFC93C] after:border-[#FFC93C]/40",
+        "size-9 overflow-hidden rounded-full bg-[#FFC93C] after:border-[#FFC93C]/40",
         className
       )}
     >
+      {image ? (
+        <AvatarImage src={image} alt="" className="object-cover" />
+      ) : null}
       <AvatarFallback className="bg-[#FFC93C] text-[0.75rem] font-bold tracking-wide text-[#0E141B]">
         {initials}
       </AvatarFallback>
@@ -201,7 +205,7 @@ function UserMenu({ user }: { user: AuthUser }) {
 
         <DropdownMenuItem
           className="cursor-pointer rounded-[8px] px-2.5 py-2 text-sm text-[#D5DEE5] focus:bg-white/8 focus:text-white"
-          onClick={() => router.push("/profile")}
+          onClick={() => router.push("/dashboard/profile")}
         >
           <UserRoundIcon className="size-4 text-[#9AABB8]" />
           My profile

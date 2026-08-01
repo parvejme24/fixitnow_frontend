@@ -7,6 +7,7 @@ import {
   KeyRoundIcon,
   LoaderCircleIcon,
   UserRoundIcon,
+  XIcon,
 } from "lucide-react"
 
 import AuthGuard from "@/app/providers/AuthGuard"
@@ -18,6 +19,7 @@ import {
   type AuthUser,
 } from "@/lib/auth/types"
 import { DashToastHost, useDashToasts } from "@/app/components/Dashboard/DashShared"
+import ProfileShell, { ProfileBreadcrumb } from "./ProfileShell"
 
 import "@/app/components/Dashboard/dashboard.css"
 import "./profile.css"
@@ -35,6 +37,7 @@ function ProfileForm({ user }: { user: AuthUser }) {
   )
   const [saving, setSaving] = useState(false)
   const [nameError, setNameError] = useState("")
+  const [fileInputKey, setFileInputKey] = useState(0)
 
   useEffect(() => {
     setName(user.name)
@@ -48,6 +51,12 @@ function ProfileForm({ user }: { user: AuthUser }) {
     setPreview(url)
     return () => URL.revokeObjectURL(url)
   }, [imageFile])
+
+  const clearSelectedImage = () => {
+    setImageFile(null)
+    setPreview(absoluteMediaUrl(user.image))
+    setFileInputKey((k) => k + 1)
+  }
 
   const initials = user.initials || initialsFromName(user.name || user.email)
   const dirty =
@@ -77,7 +86,11 @@ function ProfileForm({ user }: { user: AuthUser }) {
       await refreshUser()
       pushToast("Profile updated", "Your account details were saved.")
     } catch (error) {
-      pushToast("Could not save profile", getAuthErrorMessage(error, "Please try again."), "error")
+      pushToast(
+        "Could not save profile",
+        getAuthErrorMessage(error, "Please try again."),
+        "error"
+      )
     } finally {
       setSaving(false)
     }
@@ -98,13 +111,53 @@ function ProfileForm({ user }: { user: AuthUser }) {
               <CameraIcon size={16} />
               <span>Photo</span>
             </label>
+            {imageFile ? (
+              <button
+                type="button"
+                className="profile-avatar-clear"
+                aria-label="Remove selected photo"
+                title="Remove selected photo"
+                onClick={clearSelectedImage}
+              >
+                <XIcon size={14} />
+              </button>
+            ) : null}
             <input
+              key={fileInputKey}
               id={fileId}
               type="file"
               accept="image/png,image/jpeg,image/webp,image/gif"
               className="sr-only"
               onChange={(e) => {
                 const file = e.target.files?.[0] ?? null
+                if (!file) {
+                  setImageFile(null)
+                  return
+                }
+                const allowed = [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp",
+                  "image/gif",
+                ]
+                if (!allowed.includes(file.type)) {
+                  pushToast(
+                    "Invalid image",
+                    "Use JPEG, PNG, WEBP, or GIF only.",
+                    "error"
+                  )
+                  setFileInputKey((k) => k + 1)
+                  return
+                }
+                if (file.size > 5 * 1024 * 1024) {
+                  pushToast(
+                    "Image too large",
+                    "Keep the photo under 5MB.",
+                    "error"
+                  )
+                  setFileInputKey((k) => k + 1)
+                  return
+                }
                 setImageFile(file)
               }}
             />
@@ -140,7 +193,9 @@ function ProfileForm({ user }: { user: AuthUser }) {
               disabled
               readOnly
             />
-            <small className="field-hint">Email is used for login and password resets.</small>
+            <small className="field-hint">
+              Email is used for login and password resets.
+            </small>
           </label>
 
           <label className="field">
@@ -158,10 +213,7 @@ function ProfileForm({ user }: { user: AuthUser }) {
             <span>Account</span>
             <div className="profile-meta-row">
               <span>Role · {user.role}</span>
-              <span>
-                Status ·{" "}
-                {user.isActive === false ? "Inactive" : "Active"}
-              </span>
+              <span>Status · {user.isActive === false ? "Inactive" : "Active"}</span>
               {user.createdAt ? (
                 <span>
                   Joined ·{" "}
@@ -177,7 +229,10 @@ function ProfileForm({ user }: { user: AuthUser }) {
         </div>
 
         <div className="profile-actions">
-          <Link href="/auth/change-password" className="dash-btn dash-btn--secondary">
+          <Link
+            href="/auth/change-password"
+            className="dash-btn dash-btn--secondary"
+          >
             <KeyRoundIcon size={16} />
             Change password
           </Link>
@@ -210,7 +265,7 @@ function ProfileBody() {
 
   if (isLoading) {
     return (
-      <div className="profile-page">
+      <div className="profile-page profile-page--dash">
         <div className="profile-card profile-card--loading">
           <LoaderCircleIcon size={22} className="animate-spin" />
           <p>Loading your profile…</p>
@@ -221,11 +276,16 @@ function ProfileBody() {
 
   if (!user) {
     return (
-      <div className="profile-page">
+      <div className="profile-page profile-page--dash">
         <div className="profile-card">
           <h1 className="profile-title">Sign in required</h1>
-          <p className="profile-sub">Open your account to view and edit profile details.</p>
-          <Link href="/auth/login?next=/profile" className="dash-btn dash-btn--primary">
+          <p className="profile-sub">
+            Open your account to view and edit profile details.
+          </p>
+          <Link
+            href="/auth/login?next=/dashboard/profile"
+            className="dash-btn dash-btn--primary"
+          >
             Sign in
           </Link>
         </div>
@@ -234,16 +294,30 @@ function ProfileBody() {
   }
 
   return (
-    <div className="profile-page">
-      <button
-        type="button"
-        className="profile-refresh"
-        onClick={() => void refreshUser()}
-      >
-        Refresh from server
-      </button>
-      <ProfileForm user={user} />
-    </div>
+    <ProfileShell>
+      <div className="profile-page profile-page--dash">
+        <ProfileBreadcrumb />
+        <header className="dash-head" style={{ marginBottom: 8 }}>
+          <div>
+            <h1 className="dash-title">My profile</h1>
+            <p className="dash-sub">
+              Update your name, phone, and photo. Password changes stay on a
+              separate page.
+            </p>
+          </div>
+          <div className="dash-head__actions">
+            <button
+              type="button"
+              className="dash-btn dash-btn--ghost"
+              onClick={() => void refreshUser()}
+            >
+              Refresh
+            </button>
+          </div>
+        </header>
+        <ProfileForm user={user} />
+      </div>
+    </ProfileShell>
   )
 }
 

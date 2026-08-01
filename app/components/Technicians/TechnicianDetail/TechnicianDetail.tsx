@@ -1,11 +1,18 @@
 "use client"
 
 import Link from "next/link"
-import { useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react"
+import { createPortal } from "react-dom"
 import {
   CheckCircle2Icon,
   Clock3Icon,
+  LoaderCircleIcon,
   MapPinIcon,
   ShieldCheckIcon,
   StarIcon,
@@ -15,12 +22,17 @@ import { useReducedMotion } from "framer-motion"
 import {
   formatTaka,
   firstName,
-  reviewsForTechnician,
   servicesForTechnician,
   type Review,
   type Service,
   type Technician,
 } from "@/app/lib/catalogue"
+import { useAuth } from "@/app/providers/AuthProvider"
+import ProfileFace from "@/app/components/Shared/ProfileFace"
+import {
+  getBookingErrorMessage,
+  useCreateBooking,
+} from "@/lib/bookings/hooks"
 import {
   useService,
   useServices,
@@ -29,26 +41,16 @@ import {
   useTechnicians,
 } from "@/lib/catalogue/hooks"
 import type { TechnicianSlot } from "@/lib/catalogue/types"
+import { technicianWithAuthImage } from "@/lib/catalogue/with-auth-image"
+import { useTechnicianReviewsQuery } from "@/lib/technicians/hooks"
+import {
+  getReviewErrorMessage,
+  useCreateReview,
+  useDeleteReview,
+} from "@/lib/reviews/hooks"
 import ReviewForm from "@/app/components/Shared/ReviewForm/ReviewForm"
 
 import "./TechnicianDetail.css"
-
-const DEMO_START = new Date(2026, 6, 29)
-const BOOKED_SEEDS = [1, 4, 7, 2, 9, 3, 6]
-const SLOT_TIMES = [
-  "08:00 AM",
-  "09:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "12:00 PM",
-  "01:00 PM",
-  "02:00 PM",
-  "03:00 PM",
-  "04:00 PM",
-  "05:00 PM",
-  "06:00 PM",
-  "07:00 PM",
-] as const
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
 const MON = [
@@ -66,13 +68,14 @@ const MON = [
   "Dec",
 ] as const
 
-type DayInfo = {
+type DayBucket = {
   index: number
+  dateKey: string
   date: Date
   dow: string
   dom: number
   mon: string
-  isFriday: boolean
+  slots: TechnicianSlot[]
 }
 
 type ToastItem = {
@@ -81,28 +84,79 @@ type ToastItem = {
   message: string
 }
 
-function buildDays(): DayInfo[] {
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(DEMO_START)
-    date.setDate(DEMO_START.getDate() + index)
-    return {
-      index,
-      date,
-      dow: DOW[date.getDay()],
-      dom: date.getDate(),
-      mon: MON[date.getMonth()],
-      isFriday: date.getDay() === 5,
-    }
-  })
+function slotDateKey(raw: string) {
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10)
+  const d = new Date(raw)
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10)
+  return raw.slice(0, 10)
+}
+
+function parseLocalDate(dateKey: string) {
+  const [y, m, d] = dateKey.split("-").map(Number)
+  return new Date(y, (m || 1) - 1, d || 1, 12, 0, 0, 0)
+}
+
+function timeToMinutes(time: string) {
+  const m = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
+  if (!m) return 0
+  let h = Number(m[1])
+  const min = Number(m[2])
+  const ap = m[3].toUpperCase()
+  if (ap === "AM") {
+    if (h === 12) h = 0
+  } else if (h !== 12) {
+    h += 12
+  }
+  return h * 60 + min
 }
 
 function slotLabel(time: string) {
   return time.replace(":00 ", " ")
 }
 
-function isSlotBooked(dayIndex: number, slotIndex: number) {
-  const seed = BOOKED_SEEDS[dayIndex % 7]
-  return (slotIndex * 3 + seed) % 5 === 0
+function groupSlotsByDay(apiSlots: TechnicianSlot[]): DayBucket[] {
+  const byDate = new Map<string, TechnicianSlot[]>()
+  for (const slot of apiSlots) {
+    const key = slotDateKey(slot.date)
+    if (!key) continue
+    const list = byDate.get(key) ?? []
+    list.push(slot)
+    byDate.set(key, list)
+  }
+
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dateKey, slots], index) => {
+      const date = parseLocalDate(dateKey)
+      return {
+        index,
+        dateKey,
+        date,
+        dow: DOW[date.getDay()],
+        dom: date.getDate(),
+        mon: MON[date.getMonth()],
+        slots: [...slots].sort(
+          (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+        ),
+      }
+    })
+}
+
+function nextFreeBadge(slots: TechnicianSlot[], online: boolean) {
+  const free = [...slots]
+    .filter((s) => !s.isBooked)
+    .sort((a, b) => {
+      const da = slotDateKey(a.date).localeCompare(slotDateKey(b.date))
+      if (da !== 0) return da
+      return timeToMinutes(a.startTime) - timeToMinutes(b.startTime)
+    })
+
+  if (!free.length) return { label: "No open slots", live: false }
+  if (online) return { label: "Available", live: true }
+
+  const first = free[0]
+  const day = parseLocalDate(slotDateKey(first.date))
+  return { label: `Next free ${DOW[day.getDay()]}`, live: false }
 }
 
 function stars(rating: number) {
@@ -170,7 +224,9 @@ export default function TechnicianDetail() {
 
   const loading =
     (Boolean(id) && techQuery.isLoading) ||
-    (!id && Boolean(serviceParam) && (serviceQuery.isLoading || techniciansQuery.isLoading))
+    (!id &&
+      Boolean(serviceParam) &&
+      (serviceQuery.isLoading || techniciansQuery.isLoading))
 
   if (loading) {
     return (
@@ -209,73 +265,85 @@ export default function TechnicianDetail() {
       tech={tech}
       serviceParam={serviceParam}
       allServices={servicesQuery.data?.items ?? []}
+      servicesLoading={servicesQuery.isLoading}
       apiSlots={slotsQuery.data ?? []}
       slotsLoading={slotsQuery.isLoading}
+      slotsError={slotsQuery.isError}
+      onRetrySlots={() => void slotsQuery.refetch()}
       reduceMotion={reduceMotion}
     />
   )
 }
 
 function TechnicianDetailView({
-  tech,
+  tech: techProp,
   serviceParam,
   allServices,
+  servicesLoading,
   apiSlots,
   slotsLoading,
+  slotsError,
+  onRetrySlots,
   reduceMotion,
 }: {
   tech: Technician
   serviceParam: string | null
   allServices: Service[]
+  servicesLoading: boolean
   apiSlots: TechnicianSlot[]
   slotsLoading: boolean
+  slotsError: boolean
+  onRetrySlots: () => void
   reduceMotion: boolean
 }) {
-  const services = useMemo(
+  const { user, isAuthenticated, token } = useAuth()
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const createBooking = useCreateBooking()
+  const createReview = useCreateReview()
+  const deleteReview = useDeleteReview()
+
+  const tech = useMemo(
+    () => technicianWithAuthImage(techProp, user),
+    [techProp, user]
+  )
+
+  const catalogueServices = useMemo(
     () => servicesForTechnician(tech, allServices),
     [tech, allServices]
   )
-  const baseReviews = useMemo(() => reviewsForTechnician(tech), [tech])
+
+  const services = useMemo(() => {
+    if (catalogueServices.length) return catalogueServices
+    return [
+      {
+        id: `visit-${tech.id}`,
+        cat: tech.cats[0] ?? "",
+        catName: tech.trade,
+        title: `${tech.trade} visit`,
+        desc: tech.bio || `On-site visit with ${tech.name}`,
+        price: 0,
+        dur: "As agreed",
+        rating: tech.rating,
+        reviews: tech.reviews,
+      } satisfies Service,
+    ]
+  }, [catalogueServices, tech])
+
+  const reviewsQuery = useTechnicianReviewsQuery(tech.id)
+  const baseReviews = reviewsQuery.data ?? []
   const [extraReviews, setExtraReviews] = useState<Review[]>([])
   const reviewList = useMemo(
     () => [...extraReviews, ...baseReviews],
     [extraReviews, baseReviews]
   )
 
-  const apiDays = useMemo(() => {
-    const byDate = new Map<string, TechnicianSlot[]>()
-    for (const slot of apiSlots) {
-      const key = slot.date.slice(0, 10)
-      const list = byDate.get(key) ?? []
-      list.push(slot)
-      byDate.set(key, list)
-    }
-    return Array.from(byDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([dateKey, slots], index) => {
-        const date = new Date(`${dateKey}T12:00:00`)
-        return {
-          index,
-          dateKey,
-          date,
-          dow: DOW[date.getDay()],
-          dom: date.getDate(),
-          mon: MON[date.getMonth()],
-          isFriday: date.getDay() === 5,
-          slots: slots.sort((a, b) => a.startTime.localeCompare(b.startTime)),
-        }
-      })
-  }, [apiSlots])
-
-  const useApiSchedule = apiDays.length > 0
-  const days = useMemo(() => {
-    if (useApiSchedule) return apiDays
-    return buildDays().map((d) => ({
-      ...d,
-      dateKey: "",
-      slots: [] as TechnicianSlot[],
-    }))
-  }, [useApiSchedule, apiDays])
+  const days = useMemo(() => groupSlotsByDay(apiSlots), [apiSlots])
+  const availability = useMemo(
+    () => nextFreeBadge(apiSlots, tech.online),
+    [apiSlots, tech.online]
+  )
   const fname = firstName(tech.name)
 
   const defaultServiceId = useMemo(() => {
@@ -291,11 +359,33 @@ function TechnicianDetailView({
   const [reviewsReady, setReviewsReady] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [requestRef, setRequestRef] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [toasts, setToasts] = useState<ToastItem[]>([])
+  const [portalReady, setPortalReady] = useState(false)
   const [lastTechId, setLastTechId] = useState(tech.id)
   const [lastDefaultService, setLastDefaultService] = useState(defaultServiceId)
+  const [lastDaysKey, setLastDaysKey] = useState("")
 
-  // Sync selection when query resolution changes (React render-time sync)
+  const daysKey = days.map((d) => d.dateKey).join("|")
+
+  useEffect(() => {
+    setPortalReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!modalOpen) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !submitting) setModalOpen(false)
+    }
+    document.addEventListener("keydown", onKey)
+    return () => {
+      document.body.style.overflow = prev
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [modalOpen, submitting])
+
   if (tech.id !== lastTechId || defaultServiceId !== lastDefaultService) {
     if (tech.id !== lastTechId) setReviewsReady(false)
     setLastTechId(tech.id)
@@ -304,6 +394,13 @@ function TechnicianDetailView({
     setSelectedSlot(null)
     setRequestRef(null)
     setExtraReviews([])
+    setDayIndex(0)
+  }
+
+  if (daysKey !== lastDaysKey) {
+    setLastDaysKey(daysKey)
+    setDayIndex(0)
+    setSelectedSlot(null)
   }
 
   useEffect(() => {
@@ -318,25 +415,22 @@ function TechnicianDetailView({
   const selectedService: Service | undefined = services.find(
     (s) => s.id === selectedServiceId
   )
-  const selectedDay = days[dayIndex]
+  const safeDayIndex = Math.min(dayIndex, Math.max(0, days.length - 1))
+  const selectedDay = days[safeDayIndex]
   const total =
     selectedService != null ? selectedService.price + tech.rate : null
 
-  const selectedSlotLabel = useMemo(() => {
+  const selectedSlotRow = useMemo(() => {
     if (!selectedSlot) return null
-    if (useApiSchedule) {
-      const slot = apiSlots.find((s) => s.id === selectedSlot)
-      return slot ? slot.startTime : selectedSlot
-    }
-    return selectedSlot
-  }, [selectedSlot, useApiSchedule, apiSlots])
+    return apiSlots.find((s) => s.id === selectedSlot) ?? null
+  }, [selectedSlot, apiSlots])
 
   const slotSummary =
-    selectedDay && selectedSlotLabel
-      ? `${selectedDay.dow} ${selectedDay.dom} ${selectedDay.mon} · ${slotLabel(selectedSlotLabel)}`
+    selectedDay && selectedSlotRow
+      ? `${selectedDay.dow} ${selectedDay.dom} ${selectedDay.mon} · ${slotLabel(selectedSlotRow.startTime)}`
       : "—"
 
-  const canRequest = Boolean(selectedService && selectedSlot) && !requestRef
+  const canRequest = Boolean(selectedService && selectedSlotRow) && !requestRef
 
   const pushToast = (title: string, message: string) => {
     const toastId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
@@ -347,27 +441,71 @@ function TechnicianDetailView({
   }
 
   const onPickDay = (index: number) => {
-    if (days[index]?.isFriday) return
     setDayIndex(index)
     setSelectedSlot(null)
   }
 
-  const sendRequest = () => {
-    const ref = `FIX-${4830 + Math.floor(Math.random() * 60)}`
-    setModalOpen(false)
-    window.setTimeout(() => {
-      setRequestRef(ref)
+  const sendRequest = async () => {
+    if (submitting) return
+    if (!isAuthenticated || !user) {
+      setModalOpen(false)
+      const qs = searchParams.toString()
+      const next = qs ? `${pathname}?${qs}` : pathname
+      router.push(`/login?next=${encodeURIComponent(next)}`)
+      return
+    }
+    if (user.role !== "CUSTOMER") {
+      setModalOpen(false)
+      if (user.role === "TECHNICIAN") {
+        pushToast(
+          "You’re not a customer",
+          "Technicians can’t send booking requests. Sign in with a customer account to book this slot."
+        )
+      } else if (user.role === "ADMIN") {
+        pushToast(
+          "You’re not a customer",
+          "Admins can’t send booking requests. Use a customer account to book."
+        )
+      } else {
+        pushToast(
+          "You’re not a customer",
+          "Only customer accounts can request bookings."
+        )
+      }
+      return
+    }
+    if (!selectedService || !selectedSlot) return
+    if (selectedService.id.startsWith("visit-")) {
+      pushToast(
+        "Pick a catalogue service",
+        "Choose a real service from the list before booking — visit-only placeholders cannot be booked."
+      )
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const booking = await createBooking.mutateAsync({
+        serviceId: selectedService.id,
+        technicianId: tech.id,
+        slotId: selectedSlot,
+      })
+      setModalOpen(false)
+      setRequestRef(booking.reference)
       pushToast(
         "Request sent",
-        `${ref} is waiting for ${fname} to accept.`
+        `${booking.reference} is waiting for ${fname} to accept.`
       )
-      window.setTimeout(() => {
-        pushToast(
-          "Slot accepted",
-          "Head to your dashboard to pay and lock it in."
-        )
-      }, 3200)
-    }, 260)
+    } catch (error) {
+      pushToast("Could not send request", getBookingErrorMessage(error))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const closeModal = () => {
+    if (submitting) return
+    setModalOpen(false)
   }
 
   const revealDelay = (n: number) =>
@@ -390,13 +528,10 @@ function TechnicianDetailView({
       <div className="td-wrap">
         <div className="p-layout">
           <div>
-            <IdentityCard
-              tech={tech}
-              style={revealDelay(0)}
-            />
+            <IdentityCard tech={tech} style={revealDelay(0)} />
             <SkillsCard
               tech={tech}
-              services={services}
+              services={catalogueServices}
               fname={fname}
               style={revealDelay(1)}
             />
@@ -406,12 +541,49 @@ function TechnicianDetailView({
               reviews={reviewList}
               ready={reviewsReady}
               style={revealDelay(2)}
+              canDelete={user?.role === "ADMIN" || user?.role === "CUSTOMER"}
+              onDeleteReview={(review) => {
+                void (async () => {
+                  if (!review.id) {
+                    pushToast("Cannot delete", "This review has no id yet.")
+                    return
+                  }
+                  try {
+                    await deleteReview.mutateAsync(review.id)
+                    setExtraReviews((prev) =>
+                      prev.filter((r) => r.id !== review.id)
+                    )
+                    pushToast("Review deleted", "The review was removed.")
+                  } catch (error) {
+                    pushToast("Could not delete", getReviewErrorMessage(error))
+                  }
+                })()
+              }}
               onAddReview={(review) => {
-                setExtraReviews((prev) => [review, ...prev])
-                pushToast(
-                  "Review posted",
-                  `Thanks — your rating for ${fname} is live.`
-                )
+                void (async () => {
+                  if (!token || user?.role !== "CUSTOMER") {
+                    pushToast(
+                      "Sign in required",
+                      "Log in as a customer to post a review."
+                    )
+                    return
+                  }
+                  try {
+                    const saved = await createReview.mutateAsync({
+                      target: "TECHNICIAN",
+                      technicianId: tech.id,
+                      rating: review.rating,
+                      body: review.body,
+                    })
+                    setExtraReviews((prev) => [saved, ...prev])
+                    pushToast(
+                      "Review posted",
+                      `Thanks — your rating for ${fname} is live.`
+                    )
+                  } catch (error) {
+                    pushToast("Could not post", getReviewErrorMessage(error))
+                  }
+                })()
               }}
             />
           </div>
@@ -419,69 +591,98 @@ function TechnicianDetailView({
           <aside className="td-book">
             <div className="td-book__head">
               <h2>Book a slot</h2>
-              {tech.online ? (
-                <span className="td-badge td-badge--live">Available</span>
-              ) : (
-                <span className="td-badge td-badge--completed">
-                  Next free Sunday
-                </span>
-              )}
+              <span
+                className={`td-badge td-badge--${availability.live ? "live" : "completed"}`}
+              >
+                {slotsLoading ? "Checking…" : availability.label}
+              </span>
             </div>
 
             <div className="td-step">
               <p className="td-step__label">Step 1 · Choose the job</p>
-              {services.map((svc) => (
-                <button
-                  key={svc.id}
-                  type="button"
-                  className={`svc-opt${selectedServiceId === svc.id ? " is-on" : ""}`}
-                  onClick={() => setSelectedServiceId(svc.id)}
-                >
-                  <input
-                    type="radio"
-                    name="svc"
-                    checked={selectedServiceId === svc.id}
-                    onChange={() => setSelectedServiceId(svc.id)}
-                    tabIndex={-1}
-                  />
-                  <span className="svc-opt__body">
-                    <strong>{svc.title}</strong>
-                    <small>{svc.dur}</small>
-                  </span>
-                  <span className="svc-opt__price">{formatTaka(svc.price)}</span>
-                </button>
-              ))}
+              {servicesLoading && !services.length ? (
+                <p style={{ color: "#6E8091", fontSize: "0.9rem" }}>
+                  Loading services…
+                </p>
+              ) : (
+                services.map((svc) => (
+                  <button
+                    key={svc.id}
+                    type="button"
+                    className={`svc-opt${selectedServiceId === svc.id ? " is-on" : ""}`}
+                    onClick={() => setSelectedServiceId(svc.id)}
+                  >
+                    <input
+                      type="radio"
+                      name="svc"
+                      checked={selectedServiceId === svc.id}
+                      onChange={() => setSelectedServiceId(svc.id)}
+                      tabIndex={-1}
+                    />
+                    <span className="svc-opt__body">
+                      <strong>{svc.title}</strong>
+                      <small>{svc.dur}</small>
+                    </span>
+                    <span className="svc-opt__price">
+                      {formatTaka(svc.price)}
+                    </span>
+                  </button>
+                ))
+              )}
             </div>
 
             <div className="td-step">
               <p className="td-step__label">Step 2 · Pick a day</p>
-              <div className="daystrip">
-                {days.map((day) => (
+              {slotsLoading ? (
+                <p style={{ color: "#6E8091", fontSize: "0.9rem" }}>
+                  Loading available days…
+                </p>
+              ) : slotsError ? (
+                <div>
+                  <p style={{ color: "#6E8091", fontSize: "0.9rem" }}>
+                    Could not load slots from the API.
+                  </p>
                   <button
-                    key={day.index}
                     type="button"
-                    className={`${dayIndex === day.index ? "is-on" : ""}${day.isFriday ? " is-off" : ""}`}
-                    disabled={day.isFriday}
-                    onClick={() => onPickDay(day.index)}
+                    className="td-btn-ghost"
+                    style={{ marginTop: 8 }}
+                    onClick={onRetrySlots}
                   >
-                    <span className="daystrip__dow">{day.dow}</span>
-                    <span className="daystrip__dom">{day.dom}</span>
-                    <span className="daystrip__mon">{day.mon}</span>
+                    Retry
                   </button>
-                ))}
-              </div>
+                </div>
+              ) : days.length === 0 ? (
+                <p style={{ color: "#6E8091", fontSize: "0.9rem" }}>
+                  No open days yet. This technician has not published slots.
+                </p>
+              ) : (
+                <div className="daystrip">
+                  {days.map((day) => (
+                    <button
+                      key={day.dateKey}
+                      type="button"
+                      className={safeDayIndex === day.index ? "is-on" : ""}
+                      onClick={() => onPickDay(day.index)}
+                    >
+                      <span className="daystrip__dow">{day.dow}</span>
+                      <span className="daystrip__dom">{day.dom}</span>
+                      <span className="daystrip__mon">{day.mon}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="td-step">
               <p className="td-step__label">Step 3 · Pick a time</p>
-              {slotsLoading && !useApiSchedule ? (
+              {slotsLoading ? (
                 <p style={{ color: "#6E8091", fontSize: "0.9rem" }}>
                   Loading available slots…
                 </p>
-              ) : null}
-              <div className="slot-grid">
-                {useApiSchedule
-                  ? (selectedDay?.slots ?? []).map((slot) => {
+              ) : selectedDay ? (
+                <>
+                  <div className="slot-grid">
+                    {selectedDay.slots.map((slot) => {
                       const on = selectedSlot === slot.id
                       return (
                         <button
@@ -492,38 +693,38 @@ function TechnicianDetailView({
                           onClick={() => setSelectedSlot(slot.id)}
                         >
                           {slotLabel(slot.startTime)}
+                          {slot.endTime ? (
+                            <small
+                              style={{
+                                display: "block",
+                                fontSize: "0.65rem",
+                                opacity: 0.75,
+                              }}
+                            >
+                              – {slotLabel(slot.endTime)}
+                            </small>
+                          ) : null}
                         </button>
                       )
-                    })
-                  : !slotsLoading
-                    ? SLOT_TIMES.map((time, i) => {
-                        const booked = isSlotBooked(dayIndex, i)
-                        const on = selectedSlot === time
-                        return (
-                          <button
-                            key={time}
-                            type="button"
-                            className={`${on ? "is-on" : ""}${booked ? " is-booked" : ""}`}
-                            disabled={booked || Boolean(requestRef)}
-                            onClick={() => setSelectedSlot(time)}
-                          >
-                            {slotLabel(time)}
-                          </button>
-                        )
-                      })
-                    : null}
-              </div>
-              <div className="slot-legend">
-                <span>
-                  <i className="lg-free" /> Free
-                </span>
-                <span>
-                  <i className="lg-sel" /> Selected
-                </span>
-                <span>
-                  <i className="lg-booked" /> Booked
-                </span>
-              </div>
+                    })}
+                  </div>
+                  <div className="slot-legend">
+                    <span>
+                      <i className="lg-free" /> Free
+                    </span>
+                    <span>
+                      <i className="lg-sel" /> Selected
+                    </span>
+                    <span>
+                      <i className="lg-booked" /> Booked
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <p style={{ color: "#6E8091", fontSize: "0.9rem" }}>
+                  Pick a day to see times.
+                </p>
+              )}
             </div>
 
             <div className="td-summary">
@@ -566,77 +767,113 @@ function TechnicianDetailView({
         </div>
       </div>
 
-      {modalOpen && selectedService && selectedSlot && (
-        <div
-          className="td-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="td-modal-title"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setModalOpen(false)
-          }}
-        >
-          <div className="td-modal__panel">
-            <h3 id="td-modal-title">Send this request?</h3>
-            <div className="td-modal__receipt">
-              <div className="td-receipt__row">
-                <span>Technician</span>
-                <span>{tech.name}</span>
+      {portalReady &&
+        modalOpen &&
+        selectedService &&
+        selectedSlotRow &&
+        createPortal(
+          <div
+            className="td-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="td-modal-title"
+            aria-busy={submitting}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeModal()
+            }}
+          >
+            <div className="td-modal__panel">
+              {submitting ? (
+                <div className="td-modal__loading" aria-live="polite">
+                  <LoaderCircleIcon
+                    size={28}
+                    className="td-modal__spinner"
+                    aria-hidden
+                  />
+                  <span>Sending your request…</span>
+                </div>
+              ) : null}
+              <h3 id="td-modal-title">Send this request?</h3>
+              <div className="td-modal__receipt">
+                <div className="td-receipt__row">
+                  <span>Technician</span>
+                  <span>{tech.name}</span>
+                </div>
+                <div className="td-receipt__row">
+                  <span>Service</span>
+                  <span>{selectedService.title}</span>
+                </div>
+                <div className="td-receipt__row">
+                  <span>Slot</span>
+                  <span>{slotSummary}</span>
+                </div>
+                <div className="td-receipt__row">
+                  <span>Service charge</span>
+                  <span>{formatTaka(selectedService.price)}</span>
+                </div>
+                <div className="td-receipt__row">
+                  <span>Visit fee</span>
+                  <span>{formatTaka(tech.rate)}</span>
+                </div>
+                <div className="td-receipt__row is-total">
+                  <span>Payable after acceptance</span>
+                  <span>
+                    {formatTaka(selectedService.price + tech.rate)}
+                  </span>
+                </div>
               </div>
-              <div className="td-receipt__row">
-                <span>Service</span>
-                <span>{selectedService.title}</span>
-              </div>
-              <div className="td-receipt__row">
-                <span>Slot</span>
-                <span>{slotSummary}</span>
-              </div>
-              <div className="td-receipt__row">
-                <span>Service charge</span>
-                <span>{formatTaka(selectedService.price)}</span>
-              </div>
-              <div className="td-receipt__row">
-                <span>Visit fee</span>
-                <span>{formatTaka(tech.rate)}</span>
-              </div>
-              <div className="td-receipt__row is-total">
-                <span>Payable after acceptance</span>
-                <span>{formatTaka(selectedService.price + tech.rate)}</span>
+              <p className="td-modal__note">
+                {fname} usually replies in about {tech.replyMins} minutes.
+                You&apos;ll get a Pay now button on your dashboard once the slot
+                is confirmed.
+              </p>
+              <div className="td-modal__actions">
+                <button
+                  type="button"
+                  className="td-btn-ghost"
+                  disabled={submitting}
+                  onClick={closeModal}
+                >
+                  Not yet
+                </button>
+                <button
+                  type="button"
+                  className="td-btn-primary"
+                  disabled={submitting}
+                  onClick={() => void sendRequest()}
+                >
+                  {submitting ? (
+                    <>
+                      <LoaderCircleIcon
+                        size={16}
+                        className="td-modal__spinner"
+                        aria-hidden
+                      />
+                      Sending…
+                    </>
+                  ) : (
+                    "Send request"
+                  )}
+                </button>
               </div>
             </div>
-            <p className="td-modal__note">
-              {fname} usually replies in about 8 minutes. You&apos;ll get a Pay
-              now button on your dashboard once the slot is confirmed.
-            </p>
-            <div className="td-modal__actions">
-              <button
-                type="button"
-                className="td-btn-ghost"
-                onClick={() => setModalOpen(false)}
-              >
-                Not yet
-              </button>
-              <button
-                type="button"
-                className="td-btn-primary"
-                onClick={sendRequest}
-              >
-                Send request
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
-      <div className="td-toasts" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className="td-toast" role="status">
-            <strong>{t.title}</strong>
-            <span>{t.message}</span>
-            <i className="td-toast__bar" aria-hidden />
-          </div>
-        ))}
-      </div>
+      {portalReady &&
+        createPortal(
+          <div className="td-toasts" aria-live="polite">
+            {toasts.map((t) => (
+              <div key={t.id} className="td-toast" role="status">
+                <strong>{t.title}</strong>
+                <span>{t.message}</span>
+                <i className="td-toast__bar" aria-hidden />
+              </div>
+            ))}
+          </div>,
+          document.body
+        )}
     </div>
   )
 }
@@ -649,14 +886,14 @@ function IdentityCard({
   style?: CSSProperties
 }) {
   return (
-    <article
-      className="td-card td-reveal"
-      data-reveal="zoom"
-      style={style}
-    >
+    <article className="td-card td-reveal" data-reveal="zoom" style={style}>
       <div className="td-identity">
         <div className="td-avatar">
-          {tech.initials}
+          <ProfileFace
+            image={tech.image}
+            initials={tech.initials}
+            className="td-avatar__face"
+          />
           {tech.online && <span className="td-avatar__dot" />}
         </div>
         <div className="td-identity__main">
@@ -669,7 +906,8 @@ function IdentityCard({
             )}
           </div>
           <p className="td-meta">
-            {tech.trade} · {tech.area}, Dhaka
+            {tech.trade}
+            {tech.area ? ` · ${tech.area}` : ""}
           </p>
           <p className="td-rating-line">
             <StarsInline rating={tech.rating} />
@@ -681,19 +919,27 @@ function IdentityCard({
           <strong>{formatTaka(tech.rate)}</strong>
           <span>visit fee</span>
         </div>
-        <p className="td-bio">{tech.bio}</p>
+        {tech.bio ? <p className="td-bio">{tech.bio}</p> : null}
         <div className="td-facts">
           <div className="td-fact">
             <ShieldCheckIcon size={16} />
-            <span>{tech.exp} years in the trade</span>
+            <span>
+              {tech.exp > 0
+                ? `${tech.exp} years in the trade`
+                : "New on FixItNow"}
+            </span>
           </div>
           <div className="td-fact">
             <Clock3Icon size={16} />
-            <span>Replies in ~8 min</span>
+            <span>Replies in ~{tech.replyMins} min</span>
           </div>
           <div className="td-fact">
             <MapPinIcon size={16} />
-            <span>Covers {tech.area} + 4 km</span>
+            <span>
+              {tech.area
+                ? `Covers ${tech.area} + ${tech.coverKm} km`
+                : `Covers ${tech.coverKm} km radius`}
+            </span>
           </div>
           <div className="td-fact">
             <CheckCircle2Icon size={16} />
@@ -725,20 +971,30 @@ function SkillsCard({
         ))}
       </div>
       <p className="td-subhead">Services offered</p>
-      <div className="td-svc-grid">
-        {services.map((svc) => (
-          <Link key={svc.id} href={`/services/${svc.id}`} className="td-svc-mini">
-            <div className="td-svc-mini__top">
-              <h3>{svc.title}</h3>
-              <b>{formatTaka(svc.price)}</b>
-            </div>
-            <p>{svc.desc}</p>
-            <p className="td-svc-mini__meta">
-              {svc.dur} · {svc.reviews} reviews
-            </p>
-          </Link>
-        ))}
-      </div>
+      {services.length ? (
+        <div className="td-svc-grid">
+          {services.map((svc) => (
+            <Link
+              key={svc.id}
+              href={`/services/${svc.id}`}
+              className="td-svc-mini"
+            >
+              <div className="td-svc-mini__top">
+                <h3>{svc.title}</h3>
+                <b>{formatTaka(svc.price)}</b>
+              </div>
+              <p>{svc.desc}</p>
+              <p className="td-svc-mini__meta">
+                {svc.dur} · {svc.reviews} reviews
+              </p>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p style={{ color: "var(--steel-400)", margin: 0 }}>
+          Book against {fname}&apos;s visit fee for this trade.
+        </p>
+      )}
     </article>
   )
 }
@@ -750,6 +1006,8 @@ function ReviewsCard({
   ready,
   style,
   onAddReview,
+  onDeleteReview,
+  canDelete,
 }: {
   tech: Technician
   fname: string
@@ -757,6 +1015,8 @@ function ReviewsCard({
   ready: boolean
   style?: CSSProperties
   onAddReview: (review: Review) => void
+  onDeleteReview?: (review: Review) => void
+  canDelete?: boolean
 }) {
   return (
     <article className="td-card td-reveal" style={style}>
@@ -785,22 +1045,38 @@ function ReviewsCard({
               </div>
             </div>
           ))
-        : reviews.map((review) => (
-            <div
-              key={`${review.author}-${review.date}-${review.body.slice(0, 20)}`}
-              className="td-review"
-            >
-              <div className="td-review__avatar">{review.initials}</div>
-              <div>
-                <div className="td-review__top">
-                  <strong>{review.author}</strong>
-                  <em>{review.date}</em>
+        : reviews.length === 0
+          ? (
+              <p style={{ color: "var(--steel-400)" }}>
+                No reviews yet for {fname}.
+              </p>
+            )
+          : reviews.map((review) => (
+              <div
+                key={`${review.id ?? ""}-${review.author}-${review.date}-${review.body.slice(0, 20)}`}
+                className="td-review"
+              >
+                <div className="td-review__avatar">{review.initials}</div>
+                <div>
+                  <div className="td-review__top">
+                    <strong>{review.author}</strong>
+                    <em>{review.date}</em>
+                  </div>
+                  <div className="td-review__stars">{stars(review.rating)}</div>
+                  <p>{review.body}</p>
+                  {canDelete && review.id && onDeleteReview ? (
+                    <button
+                      type="button"
+                      className="td-btn-ghost"
+                      style={{ marginTop: 6, fontSize: "0.78rem" }}
+                      onClick={() => onDeleteReview(review)}
+                    >
+                      Delete review
+                    </button>
+                  ) : null}
                 </div>
-                <div className="td-review__stars">{stars(review.rating)}</div>
-                <p>{review.body}</p>
               </div>
-            </div>
-          ))}
+            ))}
     </article>
   )
 }

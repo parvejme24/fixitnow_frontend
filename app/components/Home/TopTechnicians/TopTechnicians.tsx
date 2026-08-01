@@ -1,11 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useReducedMotion } from "framer-motion"
 import { CheckCircle2Icon } from "lucide-react"
 
 import { useTopTechnicians } from "@/lib/catalogue/hooks"
+import { techniciansWithAuthImage } from "@/lib/catalogue/with-auth-image"
+import ProfileFace from "@/app/components/Shared/ProfileFace"
+import { useAuth } from "@/app/providers/AuthProvider"
 
 import "./TopTechnicians.css"
 
@@ -25,7 +28,12 @@ function SkeletonCard() {
 export default function TopTechnicians() {
   const reduceMotion = useReducedMotion() ?? false
   const gridRef = useRef<HTMLDivElement>(null)
-  const { data: techs = [], isLoading } = useTopTechnicians()
+  const { user } = useAuth()
+  const { data: rawTechs = [], isLoading } = useTopTechnicians()
+  const techs = useMemo(
+    () => techniciansWithAuthImage(rawTechs, user),
+    [rawTechs, user]
+  )
   const showSkeleton = isLoading && !reduceMotion
 
   useEffect(() => {
@@ -86,7 +94,11 @@ export default function TopTechnicians() {
                 >
                   <div className="tech-card__head">
                     <div className="tech-card__avatar">
-                      {tech.initials}
+                      <ProfileFace
+                        image={tech.image}
+                        initials={tech.initials}
+                        className="tech-card__face"
+                      />
                       {tech.online && <span className="tech-card__online" />}
                     </div>
                     <div>

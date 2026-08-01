@@ -2,8 +2,10 @@ import type {
   Area,
   Category,
   Service,
+  ServiceTag,
   Technician,
 } from "@/lib/catalogue/types"
+import { absoluteMediaUrl } from "@/lib/auth/types"
 
 type Loose = Record<string, unknown>
 
@@ -27,8 +29,40 @@ function bool(value: unknown, fallback = false) {
   return typeof value === "boolean" ? value : fallback
 }
 
+function pickString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value
+  }
+  return null
+}
+
+export const SERVICE_TAG_OPTIONS: { value: ServiceTag; label: string }[] = [
+  { value: "MOST_BOOKED", label: "Most booked" },
+  { value: "TOP_RATED", label: "Top rated" },
+  { value: "EMERGENCY", label: "Emergency" },
+]
+
+const SERVICE_TAGS = new Set<string>(
+  SERVICE_TAG_OPTIONS.map((o) => o.value)
+)
+
+export function parseServiceTag(raw?: string | null): ServiceTag | undefined {
+  if (!raw) return undefined
+  const normalized = raw.trim().toUpperCase().replace(/[\s-]+/g, "_")
+  if (SERVICE_TAGS.has(normalized)) return normalized as ServiceTag
+  // Accept already-formatted labels like "Most Booked"
+  const fromLabel = SERVICE_TAG_OPTIONS.find(
+    (o) => o.label.toLowerCase() === raw.trim().toLowerCase()
+  )
+  return fromLabel?.value
+}
+
 export function formatServiceTag(tag?: string | null) {
   if (!tag) return undefined
+  const parsed = parseServiceTag(tag)
+  if (parsed) {
+    return SERVICE_TAG_OPTIONS.find((o) => o.value === parsed)?.label ?? parsed
+  }
   return tag
     .toLowerCase()
     .split(/[_\s-]+/)
@@ -76,8 +110,13 @@ export function normalizeService(raw: unknown): Service {
     dur: str(obj.duration ?? obj.dur, "1 hr"),
     rating: num(obj.ratingAvg ?? obj.rating),
     reviews: num(obj.reviewCount ?? obj.reviews),
-    tag: formatServiceTag(str(obj.tag) || null),
+    tag: parseServiceTag(str(obj.tag) || null),
     isFeatured: bool(obj.isFeatured),
+    image: absoluteMediaUrl(
+      pickString(obj.image, obj.coverImage, obj.photo, obj.thumbnail)
+    ),
+    isActive: bool(obj.isActive, true),
+    sortOrder: num(obj.sortOrder),
   }
 }
 
@@ -110,22 +149,57 @@ export function normalizeTechnician(raw: unknown): Technician {
   const area = asRecord(obj.area)
   const offered = asArray(obj.offeredServices).map(normalizeService)
 
+  // Live API: area can be null; bio can be null; skills are { id, name }[]
+  const areaName = area ? str(area.name) : ""
+  const bioRaw = obj.bio
+  const bio = bioRaw == null ? "" : str(bioRaw)
+
   return {
     id: str(obj.id),
+    userId: str(user?.id) || null,
     name: str(user?.name ?? obj.name, "Technician"),
     trade: str(obj.trade, "General"),
     cats: categoryIdsFromTechnician(obj),
-    area: str(area?.name ?? obj.area, "Dhaka"),
+    area: areaName,
+    areaId: area ? str(area.id) || null : null,
     rating: num(obj.ratingAvg ?? obj.rating),
     reviews: num(obj.reviewCount ?? obj.reviews),
     jobs: num(obj.jobsCompleted ?? obj.jobs),
     exp: num(obj.experienceYrs ?? obj.exp),
     rate: num(obj.visitFee ?? obj.rate),
-    online: bool(obj.online, true),
+    online: bool(obj.online, false),
     skills: skillsFromTechnician(obj),
-    initials: str(obj.initials) || str(user?.name, "FN").slice(0, 2).toUpperCase(),
-    bio: str(obj.bio),
-    verified: bool(obj.verified, true),
+    initials:
+      str(obj.initials) ||
+      str(user?.name, "FN")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((p) => p[0])
+        .join("")
+        .toUpperCase() || "FN",
+    image: absoluteMediaUrl(
+      pickString(
+        user?.image,
+        user?.avatar,
+        user?.profileImage,
+        user?.profilePic,
+        user?.photo,
+        obj.image,
+        obj.avatar,
+        obj.profileImage
+      )
+    ),
+    bio,
+    verified: bool(obj.verified, false),
+    coverKm: num(obj.coverKm, 4),
+    replyMins: num(obj.replyMins, 8),
+    phone: pickPhone(user?.phone ?? obj.phone),
     offeredServices: offered.length ? offered : undefined,
   }
+}
+
+function pickPhone(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value.trim()
+  return null
 }

@@ -11,14 +11,10 @@ import {
 import { useReducedMotion } from "framer-motion"
 
 import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
-import {
-  ADMIN_STATUS_COUNTS,
-  BUSIEST_CATEGORIES,
-  DECISION_QUEUE,
-  formatTakaK,
-  GROSS_MONTHS,
-} from "@/app/lib/admin-data"
+import { formatTakaK } from "@/app/lib/admin-data"
+import { useAdminStatsQuery } from "@/lib/admin/use-admin-platform"
 import { useAdminUsersQuery } from "@/lib/admin/use-admin-users"
+import { useAdminBookingsQuery } from "@/lib/bookings/hooks"
 import AdminShell from "./AdminShell"
 import { useReveal } from "./DashShell"
 import { StatCard } from "./DashShared"
@@ -26,21 +22,44 @@ import { StatCard } from "./DashShared"
 export default function AdminDashboard() {
   const reduceMotion = useReducedMotion() ?? false
   const usersQuery = useAdminUsersQuery()
+  const statsQuery = useAdminStatsQuery()
+  const bookingsQuery = useAdminBookingsQuery()
   const users = usersQuery.data ?? []
+  const stats = statsQuery.data
+  const bookings = bookingsQuery.data ?? []
   const [range, setRange] = useState("30")
   const [barsReady, setBarsReady] = useState(false)
   const barsOn = reduceMotion || barsReady
-  const revealRef = useReveal([barsOn])
+  const revealRef = useReveal([barsOn, statsQuery.isFetching])
 
   useEffect(() => {
     const id = window.setTimeout(() => setBarsReady(true), reduceMotion ? 0 : 180)
     return () => window.clearTimeout(id)
   }, [reduceMotion])
 
-  const maxGross = Math.max(...GROSS_MONTHS.map((m) => m.value))
-  const maxCat = Math.max(...BUSIEST_CATEGORIES.map((c) => c.jobs))
-  const statusTotal = ADMIN_STATUS_COUNTS.reduce((s, x) => s + x.count, 0)
-  const userTotal = users.length
+  const grossMonths =
+    stats?.monthlyRevenue?.length
+      ? stats.monthlyRevenue
+      : [{ label: "—", value: 0 }]
+  const categories =
+    stats?.topCategories?.length
+      ? stats.topCategories
+      : [{ name: "No data yet", jobs: 0 }]
+  const statusCounts =
+    stats?.statusCounts?.length
+      ? stats.statusCounts
+      : [{ status: "REQUESTED", count: 0 }]
+
+  const maxGross = Math.max(...grossMonths.map((m) => m.value), 1)
+  const maxCat = Math.max(...categories.map((c) => c.jobs), 1)
+  const statusTotal = Math.max(
+    statusCounts.reduce((s, x) => s + x.count, 0),
+    1
+  )
+  const userTotal = stats?.users || users.length
+  const activeBookings = stats?.activeBookings ?? 0
+  const revenue = stats?.revenue ?? 0
+  const disputes = stats?.disputes ?? 0
 
   return (
     <AdminShell page="overview">
@@ -50,8 +69,8 @@ export default function AdminDashboard() {
             <p className="dash-eyebrow">Admin console</p>
             <h1 className="dash-title">Platform health</h1>
             <p className="dash-sub">
-              Overview of bookings and categories. Manage accounts on the Users
-              page.
+              Live overview from <code>/admin/stats</code>. Manage bookings,
+              services, and users from the sidebar.
             </p>
           </div>
           <div className="dash-head__actions">
@@ -67,16 +86,16 @@ export default function AdminDashboard() {
               triggerClassName="min-w-[10.5rem]"
             />
             <Link
-              href="/dashboard/admin/users"
+              href="/dashboard/admin/bookings"
               className="dash-btn dash-btn--ghost"
             >
-              Users
+              Bookings
             </Link>
             <Link
-              href="/dashboard/admin/categories"
+              href="/dashboard/admin/services"
               className="dash-btn dash-btn--ghost"
             >
-              Categories
+              Services
             </Link>
           </div>
         </header>
@@ -86,35 +105,42 @@ export default function AdminDashboard() {
             icon={<UsersIcon size={18} />}
             value={userTotal}
             label="Total users"
-            delta={usersQuery.isLoading ? "Loading…" : "Live from API"}
+            delta={
+              statsQuery.isLoading
+                ? "Loading…"
+                : `${stats?.technicians ?? 0} techs`
+            }
             delay={0}
-            animate={!usersQuery.isLoading}
+            animate={!statsQuery.isLoading && !usersQuery.isLoading}
           />
           <StatCard
             icon={<InboxIcon size={18} />}
-            value={1204}
+            value={activeBookings}
             label="Active bookings"
-            delta="92 awaiting payment"
+            delta={`${stats?.awaitingPayment ?? 0} awaiting payment`}
             variant="sky"
             delay={55}
+            animate={!statsQuery.isLoading}
           />
           <StatCard
             icon={<WalletIcon size={18} />}
-            value={4412000}
-            label="Gross value, 30 days"
-            delta="+18.5%"
+            value={revenue}
+            label="Gross value"
+            delta={`${stats?.completedJobs ?? 0} completed`}
             variant="signal"
             prefix="৳"
             delay={110}
+            animate={!statsQuery.isLoading}
           />
           <StatCard
             icon={<AlertTriangleIcon size={18} />}
-            value={3}
+            value={disputes}
             label="Open disputes"
-            delta="2 older than 48h"
+            delta="From admin stats"
             deltaDir="down"
             variant="flare"
             delay={165}
+            animate={!statsQuery.isLoading}
           />
         </div>
 
@@ -124,7 +150,7 @@ export default function AdminDashboard() {
               <h2 className="dash-card__title">Gross value</h2>
             </div>
             <div className="chart">
-              {GROSS_MONTHS.map((m) => (
+              {grossMonths.map((m) => (
                 <div key={m.label} className="chart__col">
                   <div className="chart__track">
                     <div
@@ -137,7 +163,7 @@ export default function AdminDashboard() {
                     />
                   </div>
                   <span>{m.label}</span>
-                  <em>{formatTakaK(m.value)}</em>
+                  <em>{formatTakaK(m.value > 1000 ? m.value / 1000 : m.value)}</em>
                 </div>
               ))}
             </div>
@@ -148,7 +174,7 @@ export default function AdminDashboard() {
               <h2 className="dash-card__title">Busiest categories</h2>
             </div>
             <div className="rank-list">
-              {BUSIEST_CATEGORIES.map((c, i) => (
+              {categories.map((c, i) => (
                 <div key={c.name} className="rank-row">
                   <span className="rank-row__idx">{i + 1}</span>
                   <div className="rank-row__body">
@@ -183,7 +209,7 @@ export default function AdminDashboard() {
               <h2 className="dash-card__title">Booking status mix</h2>
             </div>
             <div className="status-mix">
-              {ADMIN_STATUS_COUNTS.map((row) => (
+              {statusCounts.map((row) => (
                 <div key={row.status} className="status-mix__row">
                   <span>{row.status.replace(/_/g, " ")}</span>
                   <div className="status-mix__track">
@@ -199,23 +225,77 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
+            <Link
+              href="/dashboard/admin/bookings"
+              className="dash-btn dash-btn--ghost"
+              style={{ marginTop: 12 }}
+            >
+              Open bookings
+            </Link>
           </section>
 
           <section className="dash-card">
             <div className="dash-card__head">
-              <h2 className="dash-card__title">Decision queue</h2>
+              <h2 className="dash-card__title">Action queue</h2>
             </div>
             <div className="queue-list">
-              {DECISION_QUEUE.map((row) => (
-                <div key={row.id} className="queue-row">
-                  <div>
-                    <p className="queue-row__title">{row.title}</p>
-                    <p className="queue-row__detail">{row.detail}</p>
+              {users
+                .filter(
+                  (u) =>
+                    u.role === "Technician" &&
+                    !u.technicianVerified &&
+                    u.technicianId
+                )
+                .slice(0, 3)
+                .map((u) => (
+                  <div key={`v-${u.id}`} className="queue-row">
+                    <div>
+                      <p className="queue-row__title">Verify {u.name}</p>
+                      <p className="queue-row__detail">{u.email}</p>
+                    </div>
+                    <span className="urgency urgency--warm">Verify</span>
                   </div>
-                  <span className={`urgency urgency--${row.tone}`}>{row.tag}</span>
-                </div>
-              ))}
+                ))}
+              {bookings
+                .filter((b) => b.status === "ACCEPTED")
+                .slice(0, 3)
+                .map((b) => (
+                  <Link
+                    key={`p-${b.id}`}
+                    href={`/bookings/${b.id}`}
+                    className="queue-row"
+                    style={{ textDecoration: "none", color: "inherit" }}
+                  >
+                    <div>
+                      <p className="queue-row__title">
+                        {b.reference} awaiting payment
+                      </p>
+                      <p className="queue-row__detail">
+                        {b.customer.name} · {b.service}
+                      </p>
+                    </div>
+                    <span className="urgency urgency--warm">Unpaid</span>
+                  </Link>
+                ))}
+              {!users.some(
+                (u) =>
+                  u.role === "Technician" &&
+                  !u.technicianVerified &&
+                  u.technicianId
+              ) &&
+              !bookings.some((b) => b.status === "ACCEPTED") ? (
+                <p style={{ color: "var(--steel-400)", margin: 0 }}>
+                  Queue clear — nothing urgent right now.
+                </p>
+              ) : null}
             </div>
+            <Link
+              href="/dashboard/admin/disputes"
+              className="dash-btn dash-btn--ghost"
+              style={{ marginTop: 12 }}
+            >
+              Open full queue
+            </Link>
           </section>
         </div>
 
@@ -235,8 +315,11 @@ export default function AdminDashboard() {
             >
               Open users
             </Link>
-            <Link href="/profile" className="dash-btn dash-btn--secondary">
-              My profile
+            <Link
+              href="/dashboard/admin/services"
+              className="dash-btn dash-btn--secondary"
+            >
+              Manage services
             </Link>
           </div>
         </section>

@@ -10,15 +10,23 @@ import {
 } from "lucide-react"
 
 import ReviewForm from "@/app/components/Shared/ReviewForm/ReviewForm"
+import ServiceMedia from "@/app/components/Shared/ServiceMedia"
 import {
   formatTaka,
-  reviewsForService,
   techniciansForService,
   type Review,
   type Service,
   type Technician,
 } from "@/app/lib/catalogue"
+import { formatServiceTag } from "@/lib/catalogue/normalize"
+import { useAuth } from "@/app/providers/AuthProvider"
 import { useService, useTechnicians } from "@/lib/catalogue/hooks"
+import {
+  getReviewErrorMessage,
+  useCreateReview,
+  useDeleteReview,
+  useServiceReviewsQuery,
+} from "@/lib/reviews/hooks"
 
 import "./ServiceDetail.css"
 
@@ -92,12 +100,18 @@ function ServiceDetailView({
   service: Service
   technicians: Technician[]
 }) {
+  const { user, token } = useAuth()
+  const reviewsQuery = useServiceReviewsQuery(service.id)
+  const createReview = useCreateReview()
+  const deleteReviewMut = useDeleteReview()
   const techs = useMemo(
     () => techniciansForService(service, technicians),
     [service, technicians]
   )
-  const [reviews, setReviews] = useState<Review[]>(() =>
-    reviewsForService(service)
+  const [extraReviews, setExtraReviews] = useState<Review[]>([])
+  const reviews = useMemo(
+    () => [...extraReviews, ...(reviewsQuery.data ?? [])],
+    [extraReviews, reviewsQuery.data]
   )
   const [toast, setToast] = useState<{ title: string; message: string } | null>(
     null
@@ -110,15 +124,52 @@ function ServiceDetailView({
     return Math.round((sum / reviews.length) * 10) / 10
   }, [reviews, service.rating])
 
-  const onReview = (review: Review) => {
-    setReviews((prev) => [review, ...prev])
-    setNewId(`${review.author}-${review.date}-${review.body.slice(0, 12)}`)
-    setToast({
-      title: "Review posted",
-      message: "Thanks — your rating helps the next customer choose.",
-    })
+  const onReview = async (review: Review) => {
+    if (!token || user?.role !== "CUSTOMER") {
+      setToast({
+        title: "Sign in required",
+        message: "Log in as a customer to post a review.",
+      })
+      window.setTimeout(() => setToast(null), 3400)
+      return
+    }
+    try {
+      const saved = await createReview.mutateAsync({
+        target: "SERVICE",
+        serviceId: service.id,
+        rating: review.rating,
+        body: review.body,
+      })
+      setExtraReviews((prev) => [saved, ...prev])
+      setNewId(`${saved.author}-${saved.date}-${saved.body.slice(0, 12)}`)
+      setToast({
+        title: "Review posted",
+        message: "Thanks — your rating helps the next customer choose.",
+      })
+    } catch (error) {
+      setToast({
+        title: "Could not post",
+        message: getReviewErrorMessage(error),
+      })
+    }
     window.setTimeout(() => setToast(null), 3400)
     window.setTimeout(() => setNewId(null), 2200)
+  }
+
+  const onDelete = async (review: Review) => {
+    if (!review.id) return
+    try {
+      await deleteReviewMut.mutateAsync(review.id)
+      setExtraReviews((prev) => prev.filter((r) => r.id !== review.id))
+      setToast({ title: "Review deleted", message: "The review was removed." })
+      void reviewsQuery.refetch()
+    } catch (error) {
+      setToast({
+        title: "Could not delete",
+        message: getReviewErrorMessage(error),
+      })
+    }
+    window.setTimeout(() => setToast(null), 3400)
   }
 
   return (
@@ -132,7 +183,17 @@ function ServiceDetailView({
             {" / "}
             <strong>{service.title}</strong>
           </p>
-          {service.tag && <span className="sd-hero__tag">{service.tag}</span>}
+          {service.tag && (
+            <span className="sd-hero__tag">{formatServiceTag(service.tag)}</span>
+          )}
+          <div className="sd-hero__visual">
+            <ServiceMedia
+              image={service.image}
+              title={service.title}
+              className="sd-hero__photo"
+              glyphSize={56}
+            />
+          </div>
           <p
             style={{
               margin: "0 0 8px",
@@ -241,11 +302,13 @@ function ServiceDetailView({
 
               <ReviewForm
                 subjectLabel={`“${service.title}”`}
-                onSubmit={onReview}
+                onSubmit={(review) => {
+                  void onReview(review)
+                }}
               />
 
               {reviews.map((review) => {
-                const key = `${review.author}-${review.date}-${review.body.slice(0, 24)}`
+                const key = `${review.id ?? ""}-${review.author}-${review.date}-${review.body.slice(0, 24)}`
                 return (
                   <div
                     key={key}
@@ -261,6 +324,17 @@ function ServiceDetailView({
                         {stars(review.rating)}
                       </div>
                       <p>{review.body}</p>
+                      {(user?.role === "ADMIN" || user?.role === "CUSTOMER") &&
+                      review.id ? (
+                        <button
+                          type="button"
+                          className="sd-panel__ghost"
+                          style={{ marginTop: 6, fontSize: "0.78rem" }}
+                          onClick={() => void onDelete(review)}
+                        >
+                          Delete review
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 )

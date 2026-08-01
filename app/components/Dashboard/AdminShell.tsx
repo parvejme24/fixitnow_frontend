@@ -2,21 +2,32 @@
 
 import {
   AlertTriangleIcon,
+  CalendarDaysIcon,
   LayoutDashboardIcon,
   LogOutIcon,
+  MapPinIcon,
   TagIcon,
   UserRoundIcon,
   UsersIcon,
+  WrenchIcon,
 } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { useAuth } from "@/app/providers/AuthProvider"
+import { useAdminAreasQuery } from "@/lib/admin/use-admin-areas"
 import { useAdminCategoriesQuery } from "@/lib/admin/use-admin-categories"
 import { useAdminUsersQuery } from "@/lib/admin/use-admin-users"
 import { initialsFromName } from "@/lib/auth/types"
 import DashShell from "./DashShell"
 
-type AdminPage = "overview" | "users" | "categories" | "disputes"
+type AdminPage =
+  | "overview"
+  | "users"
+  | "categories"
+  | "areas"
+  | "services"
+  | "bookings"
+  | "disputes"
 
 export default function AdminShell({
   page,
@@ -29,8 +40,10 @@ export default function AdminShell({
 }) {
   const { user } = useAuth()
   const categoriesQuery = useAdminCategoriesQuery()
+  const areasQuery = useAdminAreasQuery()
   const usersQuery = useAdminUsersQuery()
   const count = categoryCount ?? categoriesQuery.data?.length ?? 0
+  const areaCount = areasQuery.data?.length ?? 0
   const userCount = usersQuery.data?.length ?? 0
 
   const groups = [
@@ -51,6 +64,12 @@ export default function AdminShell({
           active: page === "users",
         },
         {
+          label: "Bookings",
+          href: "/dashboard/admin/bookings",
+          icon: <CalendarDaysIcon />,
+          active: page === "bookings",
+        },
+        {
           label: "Categories",
           href: "/dashboard/admin/categories",
           icon: <TagIcon />,
@@ -58,10 +77,22 @@ export default function AdminShell({
           active: page === "categories",
         },
         {
+          label: "Areas",
+          href: "/dashboard/admin/areas",
+          icon: <MapPinIcon />,
+          pill: areaCount || undefined,
+          active: page === "areas",
+        },
+        {
+          label: "Services",
+          href: "/dashboard/admin/services",
+          icon: <WrenchIcon />,
+          active: page === "services",
+        },
+        {
           label: "Disputes",
           href: "/dashboard/admin/disputes",
           icon: <AlertTriangleIcon />,
-          pill: 3,
           active: page === "disputes",
         },
       ],
@@ -71,7 +102,7 @@ export default function AdminShell({
       items: [
         {
           label: "My profile",
-          href: "/profile",
+          href: "/dashboard/profile",
           icon: <UserRoundIcon />,
         },
         { label: "Log out", href: "#", icon: <LogOutIcon /> },
@@ -87,6 +118,7 @@ export default function AdminShell({
       initials={
         user?.initials || initialsFromName(user?.name || "Platform admin")
       }
+      image={user?.image}
       online
       groups={groups}
     >

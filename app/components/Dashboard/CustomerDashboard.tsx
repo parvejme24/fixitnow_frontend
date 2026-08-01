@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useMemo, useState, type RefObject } from "react"
+import { useRouter } from "next/navigation"
+import { useMemo, useState, type RefObject } from "react"
 import {
   CalendarDaysIcon,
   InboxIcon,
@@ -14,15 +15,27 @@ import {
 
 import { useAuth } from "@/app/providers/AuthProvider"
 import {
-  CUSTOMER_BOOKINGS,
-  CUSTOMER_PAYMENTS,
-  CUSTOMER_REVIEWS,
   formatTaka,
   isActiveStatus,
   type BookingStatus,
   type DashBooking,
   type DashReview,
 } from "@/app/lib/dashboard-data"
+import { toDashBooking } from "@/lib/bookings/api"
+import {
+  getBookingErrorMessage,
+  useCancelBooking,
+  useMyBookings,
+} from "@/lib/bookings/hooks"
+import type { Booking } from "@/lib/bookings/types"
+import {
+  getPaymentErrorMessage,
+  useInitiatePayment,
+} from "@/lib/payments/hooks"
+import {
+  getReviewErrorMessage,
+  useCreateReview,
+} from "@/lib/reviews/hooks"
 import DashShell, { useReveal } from "./DashShell"
 import {
   DashModal,
@@ -39,26 +52,43 @@ const TABS = ["Bookings", "Payments", "Reviews", "Track a job"]
 
 export default function CustomerDashboard() {
   const { user } = useAuth()
-  const name = user?.name || "Ayesha Siddika"
-  const first = name.split(" ")[0] || "Ayesha"
+  const router = useRouter()
+  const name = user?.name || "Customer"
+  const first = name.split(" ")[0] || "there"
   const { toasts, pushToast } = useDashToasts()
   const [tab, setTab] = useState("Bookings")
   const [filter, setFilter] = useState<Filter>("All")
-  const [bookings, setBookings] = useState<DashBooking[]>(CUSTOMER_BOOKINGS)
-  const [reviews, setReviews] = useState<DashReview[]>(CUSTOMER_REVIEWS)
-  const [loading, setLoading] = useState(true)
+  const [reviews, setReviews] = useState<DashReview[]>([])
   const [cancelId, setCancelId] = useState<string | null>(null)
   const [leavingIds, setLeavingIds] = useState<string[]>([])
   const [reviewId, setReviewId] = useState<string | null>(null)
   const [stars, setStars] = useState(0)
   const [hoverStar, setHoverStar] = useState(0)
   const [reviewBody, setReviewBody] = useState("")
-  const revealRef = useReveal([tab, loading])
+  const [payingId, setPayingId] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const [reviewing, setReviewing] = useState(false)
 
-  useEffect(() => {
-    const id = window.setTimeout(() => setLoading(false), 700)
-    return () => window.clearTimeout(id)
-  }, [])
+  const bookingsQuery = useMyBookings()
+  const cancelBooking = useCancelBooking()
+  const initiatePayment = useInitiatePayment()
+  const createReview = useCreateReview()
+
+  const rawById = useMemo(() => {
+    const map = new Map<string, Booking>()
+    for (const b of bookingsQuery.data ?? []) {
+      map.set(b.id, b)
+    }
+    return map
+  }, [bookingsQuery.data])
+
+  const bookings = useMemo(
+    () => (bookingsQuery.data ?? []).map(toDashBooking),
+    [bookingsQuery.data]
+  )
+  const loading = bookingsQuery.isLoading
+
+  const revealRef = useReveal([tab, loading])
 
   const activeCount = bookings.filter((b) => isActiveStatus(b.status)).length
   const needsPayment = bookings.filter((b) => b.status === "ACCEPTED").length
@@ -68,6 +98,44 @@ export default function CustomerDashboard() {
   const reviewsDue = bookings.filter(
     (b) => b.status === "COMPLETED" && !b.reviewed
   ).length
+
+  const payments = useMemo(
+    () =>
+      bookings
+        .filter((b) =>
+          ["PAID", "COMPLETED", "IN_PROGRESS"].includes(b.status)
+        )
+        .map((b) => {
+          const raw = rawById.get(b.id)
+          return {
+            id: raw?.paymentId || b.id,
+            method: "bKash",
+            bookingRef: b.reference,
+            bookingId: b.id,
+            amount: b.amount,
+            date: b.date,
+            status: "Paid" as const,
+          }
+        }),
+    [bookings, rawById]
+  )
+
+  const displayReviews = useMemo(() => {
+    const localRefs = new Set(reviews.map((r) => r.bookingRef))
+    const fromBookings: DashReview[] = bookings
+      .filter((b) => b.status === "COMPLETED" && b.reviewed)
+      .filter((b) => !localRefs.has(b.reference))
+      .map((b) => ({
+        id: `reviewed-${b.id}`,
+        technician: b.technician.name,
+        initials: b.technician.initials,
+        rating: 5,
+        body: "You rated this completed job.",
+        date: b.date,
+        bookingRef: b.reference,
+      }))
+    return [...reviews, ...fromBookings]
+  }, [reviews, bookings])
 
   const filtered = useMemo(() => {
     return bookings.filter((b) => {
@@ -86,52 +154,96 @@ export default function CustomerDashboard() {
   const cancelTarget = bookings.find((b) => b.id === cancelId)
   const reviewTarget = bookings.find((b) => b.id === reviewId)
 
-  const confirmCancel = () => {
-    if (!cancelTarget) return
+  const confirmCancel = async () => {
+    if (!cancelTarget || cancelling) return
     const id = cancelTarget.id
     const wasPaid = cancelTarget.status === "PAID"
     const reference = cancelTarget.reference
     setCancelId(null)
     setLeavingIds((prev) => [...prev, id])
-    window.setTimeout(() => {
-      setBookings((prev) =>
-        prev.map((b) =>
-          b.id === id ? { ...b, status: "CANCELLED" as BookingStatus } : b
-        )
-      )
-      setLeavingIds((prev) => prev.filter((x) => x !== id))
+    setCancelling(true)
+    try {
+      await cancelBooking.mutateAsync(id)
       pushToast(
         "Booking cancelled",
         wasPaid
           ? `${reference} cancelled. Refund will post in 3–5 days.`
           : `${reference} was cancelled.`
       )
-    }, 320)
+    } catch (error) {
+      pushToast(
+        "Could not cancel",
+        getBookingErrorMessage(error),
+        "error"
+      )
+    } finally {
+      setLeavingIds((prev) => prev.filter((x) => x !== id))
+      setCancelling(false)
+    }
   }
 
-  const submitReview = () => {
-    if (!reviewTarget || stars < 1) return
-    const next: DashReview = {
-      id: `rv-${Date.now()}`,
-      technician: reviewTarget.technician.name,
-      initials: reviewTarget.technician.initials,
-      rating: stars,
-      body: reviewBody.trim() || "Great work.",
-      date: new Date().toLocaleDateString("en-GB", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }),
-      bookingRef: reviewTarget.reference,
+  const payNow = async (b: DashBooking) => {
+    if (payingId) return
+    setPayingId(b.id)
+    try {
+      const payment = await initiatePayment.mutateAsync({
+        bookingId: b.id,
+        method: "BKASH",
+      })
+      if (payment.redirectUrl) {
+        window.location.href = payment.redirectUrl
+      } else {
+        router.push(`/payment/success?id=${payment.id}`)
+      }
+    } catch (error) {
+      pushToast("Payment failed", getPaymentErrorMessage(error), "error")
+    } finally {
+      setPayingId(null)
     }
-    setReviews((prev) => [next, ...prev])
-    setBookings((prev) =>
-      prev.map((b) => (b.id === reviewTarget.id ? { ...b, reviewed: true } : b))
-    )
-    setReviewId(null)
-    setStars(0)
-    setReviewBody("")
-    pushToast("Review posted", `Thanks — ${reviewTarget.technician.name} got your rating.`)
+  }
+
+  const submitReview = async () => {
+    if (!reviewTarget || stars < 1 || reviewing) return
+    const raw = rawById.get(reviewTarget.id)
+    setReviewing(true)
+    try {
+      await createReview.mutateAsync({
+        target: "TECHNICIAN",
+        technicianId: raw?.technicianId ?? undefined,
+        bookingId: reviewTarget.id,
+        rating: stars,
+        body: reviewBody.trim() || "Great work.",
+      })
+      const next: DashReview = {
+        id: `rv-${Date.now()}`,
+        technician: reviewTarget.technician.name,
+        initials: reviewTarget.technician.initials,
+        rating: stars,
+        body: reviewBody.trim() || "Great work.",
+        date: new Date().toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        bookingRef: reviewTarget.reference,
+      }
+      setReviews((prev) => [next, ...prev])
+      setReviewId(null)
+      setStars(0)
+      setReviewBody("")
+      pushToast(
+        "Review posted",
+        `Thanks — ${reviewTarget.technician.name} got your rating.`
+      )
+    } catch (error) {
+      pushToast(
+        "Could not save review",
+        getReviewErrorMessage(error),
+        "error"
+      )
+    } finally {
+      setReviewing(false)
+    }
   }
 
   const groups = [
@@ -164,7 +276,7 @@ export default function CustomerDashboard() {
       items: [
         {
           label: "Profile",
-          href: "/profile",
+          href: "/dashboard/profile",
           icon: <UserRoundIcon />,
         },
         { label: "Log out", href: "#", icon: <LogOutIcon /> },
@@ -175,9 +287,14 @@ export default function CustomerDashboard() {
   const actionFor = (b: DashBooking) => {
     if (b.status === "ACCEPTED") {
       return (
-        <Link className="dash-btn dash-btn--primary dash-btn--sm" href={`/payment/success?id=${b.reference}`}>
-          Pay now
-        </Link>
+        <button
+          type="button"
+          className="dash-btn dash-btn--primary dash-btn--sm"
+          disabled={payingId === b.id}
+          onClick={() => void payNow(b)}
+        >
+          {payingId === b.id ? "Starting…" : "Pay now"}
+        </button>
       )
     }
     if (b.status === "COMPLETED" && !b.reviewed) {
@@ -220,12 +337,21 @@ export default function CustomerDashboard() {
     ? Math.max(0, trackSteps.indexOf(trackBooking.status))
     : 0
 
+  const subline =
+    needsPayment > 0 && activeCount > 0
+      ? `${activeCount} active job${activeCount === 1 ? "" : "s"} · ${needsPayment} waiting for payment.`
+      : activeCount > 0
+        ? `${activeCount} active job${activeCount === 1 ? "" : "s"} right now.`
+        : "Book a service when you need a hand."
+
   return (
     <DashShell
       role="CUSTOMER"
       displayName={name}
       roleLabel="Customer"
       online
+      initials={user?.initials || undefined}
+      image={user?.image}
       groups={groups}
     >
       <div ref={revealRef as RefObject<HTMLDivElement>}>
@@ -233,9 +359,7 @@ export default function CustomerDashboard() {
           <div>
             <p className="dash-eyebrow">Customer dashboard</p>
             <h1 className="dash-title">Hello, {first}</h1>
-            <p className="dash-sub">
-              One job is in progress and one is waiting for your payment.
-            </p>
+            <p className="dash-sub">{subline}</p>
           </div>
           <div className="dash-head__actions">
             <Link href="/services" className="dash-btn dash-btn--primary">
@@ -249,7 +373,7 @@ export default function CustomerDashboard() {
             icon={<InboxIcon size={18} />}
             value={bookings.length}
             label="Total bookings"
-            delta="+3 this month"
+            delta={loading ? "Loading…" : "Your jobs"}
             delay={0}
           />
           <StatCard
@@ -264,7 +388,7 @@ export default function CustomerDashboard() {
             icon={<WalletIcon size={18} />}
             value={spent}
             label="Spent this year"
-            delta="Across 4 trades"
+            delta="Paid & completed"
             variant="violet"
             prefix="৳"
             delay={110}
@@ -331,10 +455,14 @@ export default function CustomerDashboard() {
                       {filtered.map((b) => (
                         <tr
                           key={b.id}
-                          className={leavingIds.includes(b.id) ? "is-leaving" : undefined}
+                          className={
+                            leavingIds.includes(b.id) ? "is-leaving" : undefined
+                          }
                         >
                           <td>
-                            <strong>{b.reference}</strong>
+                            <Link href={`/bookings/${b.id}`}>
+                              <strong>{b.reference}</strong>
+                            </Link>
                           </td>
                           <td>
                             <div className="cell-stack">
@@ -386,38 +514,45 @@ export default function CustomerDashboard() {
 
         {tab === "Payments" && (
           <section className="table-wrap">
-            <table className="dash-table">
-              <thead>
-                <tr>
-                  <th>Payment</th>
-                  <th>Method</th>
-                  <th>Booking</th>
-                  <th>Amount</th>
-                  <th>Date</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {CUSTOMER_PAYMENTS.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <strong>PAY-{p.id.toUpperCase()}</strong>
-                    </td>
-                    <td>{p.method}</td>
-                    <td>{p.bookingRef}</td>
-                    <td>{formatTaka(p.amount)}</td>
-                    <td>{p.date}</td>
-                    <td>
-                      <span
-                        className={`badge-soft${p.status === "Refunded" ? " badge-soft--refund" : ""}`}
-                      >
-                        {p.status}
-                      </span>
-                    </td>
+            {payments.length === 0 ? (
+              <div className="dash-empty">
+                <h3>No payments yet</h3>
+                <p>Paid bookings will show up here.</p>
+              </div>
+            ) : (
+              <table className="dash-table">
+                <thead>
+                  <tr>
+                    <th>Payment</th>
+                    <th>Method</th>
+                    <th>Booking</th>
+                    <th>Amount</th>
+                    <th>Date</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {payments.map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <strong>PAY-{p.id.slice(0, 8).toUpperCase()}</strong>
+                      </td>
+                      <td>{p.method}</td>
+                      <td>
+                        <Link href={`/bookings/${p.bookingId}`}>
+                          {p.bookingRef}
+                        </Link>
+                      </td>
+                      <td>{formatTaka(p.amount)}</td>
+                      <td>{p.date}</td>
+                      <td>
+                        <span className="badge-soft">{p.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </section>
         )}
 
@@ -432,7 +567,7 @@ export default function CustomerDashboard() {
                 </p>
               </div>
             )}
-            {reviews.map((r) => (
+            {displayReviews.map((r) => (
               <article key={r.id} className="review-card">
                 <div className="review-card__top">
                   <span className="dash-avatar-sm">{r.initials}</span>
@@ -443,14 +578,16 @@ export default function CustomerDashboard() {
                       {"☆".repeat(5 - r.rating)}
                     </div>
                   </div>
-                  <small style={{ marginLeft: "auto", color: "var(--steel-400)" }}>
+                  <small
+                    style={{ marginLeft: "auto", color: "var(--steel-400)" }}
+                  >
                     {r.date} · {r.bookingRef}
                   </small>
                 </div>
                 <p style={{ margin: 0, color: "var(--steel-500)" }}>{r.body}</p>
               </article>
             ))}
-            {!reviews.length && (
+            {!displayReviews.length && (
               <div className="dash-empty">
                 <h3>No reviews yet</h3>
                 <p>After a job completes, you can rate the technician here.</p>
@@ -465,7 +602,10 @@ export default function CustomerDashboard() {
               <>
                 <div className="dash-card__head">
                   <h2 className="dash-card__title">
-                    Tracking {trackBooking.reference}
+                    Tracking{" "}
+                    <Link href={`/bookings/${trackBooking.id}`}>
+                      {trackBooking.reference}
+                    </Link>
                   </h2>
                   <StatusBadge status={trackBooking.status} />
                 </div>
@@ -480,7 +620,9 @@ export default function CustomerDashboard() {
                       className={`timeline__step${i < currentIdx ? " is-done" : ""}${i === currentIdx ? " is-current" : ""}`}
                     >
                       <span className="timeline__dot" />
-                      <p className="timeline__title">{step.replace(/_/g, " ")}</p>
+                      <p className="timeline__title">
+                        {step.replace(/_/g, " ")}
+                      </p>
                       <p className="timeline__body">
                         {i < currentIdx
                           ? "Completed"
@@ -517,9 +659,10 @@ export default function CustomerDashboard() {
             <button
               type="button"
               className="dash-btn dash-btn--danger"
-              onClick={confirmCancel}
+              disabled={cancelling}
+              onClick={() => void confirmCancel()}
             >
-              Cancel booking
+              {cancelling ? "Cancelling…" : "Cancel booking"}
             </button>
           </>
         }
@@ -545,10 +688,10 @@ export default function CustomerDashboard() {
             <button
               type="button"
               className="dash-btn dash-btn--primary"
-              disabled={stars < 1}
-              onClick={submitReview}
+              disabled={stars < 1 || reviewing}
+              onClick={() => void submitReview()}
             >
-              Submit review
+              {reviewing ? "Submitting…" : "Submit review"}
             </button>
           </>
         }
@@ -556,7 +699,9 @@ export default function CustomerDashboard() {
         {reviewTarget && (
           <>
             <div className="cell-person" style={{ marginBottom: 8 }}>
-              <span className="dash-avatar">{reviewTarget.technician.initials}</span>
+              <span className="dash-avatar">
+                {reviewTarget.technician.initials}
+              </span>
               <strong>{reviewTarget.technician.name}</strong>
             </div>
             <div className="star-row">

@@ -13,6 +13,8 @@ import {
   fetchTechnicians,
 } from "@/lib/catalogue/api"
 import { catalogueKeys } from "@/lib/catalogue/query-keys"
+import { fetchTechnicianReviews } from "@/lib/technicians/api"
+import { technicianKeys } from "@/lib/technicians/query-keys"
 
 type SearchParams = Promise<{ id?: string; service?: string }>
 
@@ -50,6 +52,10 @@ export default async function TechnicianPage({
       queryClient.prefetchQuery({
         queryKey: catalogueKeys.technicianSlots(params.id),
         queryFn: () => fetchTechnicianSlots(params.id!),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: technicianKeys.reviews(params.id),
+        queryFn: () => fetchTechnicianReviews(params.id!),
       }),
     ])
   } else {

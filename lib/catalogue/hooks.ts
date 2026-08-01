@@ -3,6 +3,7 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 
 import {
+  fetchArea,
   fetchAreas,
   fetchCategories,
   fetchFeaturedServices,
@@ -34,6 +35,16 @@ export function useAreas() {
     queryKey: catalogueKeys.areas(),
     queryFn: fetchAreas,
     staleTime: 60_000,
+  })
+}
+
+export function useArea(id: string, enabled = true) {
+  return useQuery({
+    queryKey: catalogueKeys.area(id),
+    queryFn: () => fetchArea(id),
+    enabled: Boolean(id) && enabled,
+    staleTime: 60_000,
+    retry: false,
   })
 }
 

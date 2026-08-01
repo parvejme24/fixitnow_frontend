@@ -7,6 +7,7 @@ import { useReducedMotion } from "framer-motion"
 import { MenuIcon, XIcon } from "lucide-react"
 
 import { useAuth } from "@/app/providers/AuthProvider"
+import ProfileFace from "@/app/components/Shared/ProfileFace"
 import { initialsFromName } from "@/lib/auth/types"
 import type { AuthRole } from "@/lib/auth/types"
 
@@ -32,6 +33,8 @@ type DashShellProps = {
   roleLabel: string
   online?: boolean
   initials?: string
+  /** Profile photo URL; falls back to the signed-in user's image */
+  image?: string | null
   groups: DashNavGroup[]
   children: ReactNode
 }
@@ -112,12 +115,14 @@ export default function DashShell({
   roleLabel,
   online,
   initials: initialsProp,
+  image: imageProp,
   groups,
   children,
 }: DashShellProps) {
   const pathname = usePathname()
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
   const initials = initialsProp || initialsFromName(displayName)
+  const image = imageProp ?? user?.image ?? null
   const pageRef = useRef<HTMLDivElement | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const sideId = useId()
@@ -239,7 +244,11 @@ export default function DashShell({
           {menuOpen ? <XIcon size={22} /> : <MenuIcon size={22} />}
         </button>
         <div className="dash-topbar__brand">
-          <span className="dash-avatar-sm">{initials}</span>
+          <ProfileFace
+            image={image}
+            initials={initials}
+            className="dash-avatar-sm"
+          />
           <div>
             <strong>{displayName}</strong>
             <small>{roleLabel}</small>
@@ -263,7 +272,11 @@ export default function DashShell({
         >
           <div className="dash-side__head">
             <div className="dash-user">
-              <span className="dash-avatar-sm">{initials}</span>
+              <ProfileFace
+                image={image}
+                initials={initials}
+                className="dash-avatar-sm"
+              />
               <div>
                 <div className="dash-user__name">
                   {displayName}

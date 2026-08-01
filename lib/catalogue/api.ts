@@ -50,6 +50,16 @@ export async function fetchAreas() {
   return listPayload(res, normalizeArea).items as Area[]
 }
 
+export async function fetchArea(id: string) {
+  const res = await apiGet<unknown>(`/areas/${id}`)
+  const data = res.data
+  const obj =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : null
+  return normalizeArea(obj?.area ?? obj?.item ?? data)
+}
+
 export async function fetchServices(query: ServicesQuery = {}) {
   const res = await apiGet<unknown>("/services", {
     page: query.page ?? 1,
@@ -101,16 +111,27 @@ export async function fetchTechnician(id: string) {
 
 export async function fetchTechnicianSlots(id: string) {
   const res = await apiGet<unknown>(`/technicians/${id}/slots`)
-  const items = Array.isArray(res.data) ? res.data : []
+  const data = res.data
+  const items = Array.isArray(data)
+    ? data
+    : data && typeof data === "object" && Array.isArray((data as { slots?: unknown }).slots)
+      ? ((data as { slots: unknown[] }).slots)
+      : []
+
   return items.map((raw): TechnicianSlot => {
     const obj =
       raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}
+    const dateRaw = String(obj.date ?? "")
+    // API sends ISO midnight UTC, e.g. "2026-07-31T00:00:00.000Z"
+    const date = /^\d{4}-\d{2}-\d{2}/.test(dateRaw)
+      ? dateRaw.slice(0, 10)
+      : dateRaw
     return {
       id: String(obj.id ?? ""),
-      date: String(obj.date ?? ""),
-      startTime: String(obj.startTime ?? ""),
-      endTime: String(obj.endTime ?? ""),
-      isBooked: Boolean(obj.isBooked),
+      date,
+      startTime: String(obj.startTime ?? obj.start ?? ""),
+      endTime: String(obj.endTime ?? obj.end ?? ""),
+      isBooked: Boolean(obj.isBooked ?? obj.booked),
     }
   })
 }

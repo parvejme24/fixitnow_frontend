@@ -8,6 +8,7 @@ export const catalogueKeys = {
   categories: () => [...catalogueKeys.all, "categories"] as const,
   category: (id: string) => [...catalogueKeys.categories(), id] as const,
   areas: () => [...catalogueKeys.all, "areas"] as const,
+  area: (id: string) => [...catalogueKeys.areas(), id] as const,
   services: (query: ServicesQuery = {}) =>
     [...catalogueKeys.all, "services", query] as const,
   featuredServices: () =>

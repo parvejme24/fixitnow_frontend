@@ -3,9 +3,10 @@
 import Link from "next/link"
 import { useEffect, useRef } from "react"
 import { useReducedMotion } from "framer-motion"
-import { WrenchIcon } from "lucide-react"
 
 import { formatTaka } from "@/app/lib/catalogue"
+import ServiceMedia from "@/app/components/Shared/ServiceMedia"
+import { formatServiceTag } from "@/lib/catalogue/normalize"
 import { useFeaturedServices } from "@/lib/catalogue/hooks"
 
 import "./FeaturedServices.css"
@@ -106,12 +107,14 @@ export default function FeaturedServices() {
                     {svc.tag && (
                       <span className="badge badge--hivis">
                         <i />
-                        {svc.tag}
+                        {formatServiceTag(svc.tag)}
                       </span>
                     )}
-                    <span className="svc-card__glyph">
-                      <WrenchIcon size={42} />
-                    </span>
+                    <ServiceMedia
+                      image={svc.image}
+                      title={svc.title}
+                      className="svc-card__photo"
+                    />
                     <span className="svc-card__price">
                       {formatTaka(svc.price)}
                     </span>

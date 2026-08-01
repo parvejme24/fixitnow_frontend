@@ -16,7 +16,12 @@ import {
   getUserErrorMessage,
   useAdminUsersQuery,
   useUpdateUserRole,
+  useUpdateUserStatus,
 } from "@/lib/admin/use-admin-users"
+import {
+  getTechnicianErrorMessage,
+  useVerifyTechnician,
+} from "@/lib/technicians/hooks"
 import AdminShell from "./AdminShell"
 import { useReveal } from "./DashShell"
 import {
@@ -69,6 +74,8 @@ export default function AdminUsers() {
   const { toasts, pushToast } = useDashToasts()
   const usersQuery = useAdminUsersQuery()
   const roleMutation = useUpdateUserRole()
+  const statusMutation = useUpdateUserStatus()
+  const verifyMutation = useVerifyTechnician()
   const users = usersQuery.data ?? []
 
   const [q, setQ] = useState("")
@@ -76,6 +83,8 @@ export default function AdminUsers() {
   const [roleFilter, setRoleFilter] = useState("Every role")
   const [page, setPage] = useState(0)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [verifyPendingId, setVerifyPendingId] = useState<string | null>(null)
+  const [statusPendingId, setStatusPendingId] = useState<string | null>(null)
   const revealRef = useReveal([page, usersQuery.isFetching])
 
   const filtered = useMemo(() => {
@@ -116,6 +125,37 @@ export default function AdminUsers() {
       pushToast("Could not update role", getUserErrorMessage(error), "error")
     } finally {
       setPendingId(null)
+    }
+  }
+
+  const verifyTech = async (user: AdminUser) => {
+    if (!user.technicianId || user.technicianVerified) return
+    setVerifyPendingId(user.id)
+    try {
+      await verifyMutation.mutateAsync(user.technicianId)
+      pushToast("Technician verified", `${user.name} is now verified.`)
+      void usersQuery.refetch()
+    } catch (error) {
+      pushToast(
+        "Could not verify",
+        getTechnicianErrorMessage(error),
+        "error"
+      )
+    } finally {
+      setVerifyPendingId(null)
+    }
+  }
+
+  const changeStatus = async (user: AdminUser, status: AdminUser["status"]) => {
+    if (status === user.status || statusMutation.isPending) return
+    setStatusPendingId(user.id)
+    try {
+      await statusMutation.mutateAsync({ id: user.id, status })
+      pushToast("Status updated", `${user.name} is now ${status.toLowerCase()}.`)
+    } catch (error) {
+      pushToast("Could not update status", getUserErrorMessage(error), "error")
+    } finally {
+      setStatusPendingId(null)
     }
   }
 
@@ -268,13 +308,17 @@ export default function AdminUsers() {
                         <th>Role</th>
                         <th>Joined</th>
                         <th>Status</th>
+                        <th>Change status</th>
                         <th>Change role</th>
+                        <th>Verify</th>
                       </tr>
                     </thead>
                     <tbody>
                       {pageRows.map((u) => {
                         const busy =
                           pendingId === u.id && roleMutation.isPending
+                        const verifying =
+                          verifyPendingId === u.id && verifyMutation.isPending
                         return (
                           <tr key={u.id}>
                             <td>
@@ -292,6 +336,37 @@ export default function AdminUsers() {
                             <td className="mono-muted">{u.joined}</td>
                             <td>
                               <StatusBadge status={u.status} />
+                              {u.role === "Technician" && u.technicianVerified ? (
+                                <span
+                                  className="badge-soft"
+                                  style={{ marginLeft: 6 }}
+                                >
+                                  Verified
+                                </span>
+                              ) : null}
+                            </td>
+                            <td>
+                              <div className="user-role-select">
+                                <select
+                                  className="dash-input user-role-select__input"
+                                  value={u.status}
+                                  disabled={
+                                    statusPendingId === u.id &&
+                                    statusMutation.isPending
+                                  }
+                                  aria-label={`Change status for ${u.name}`}
+                                  onChange={(e) =>
+                                    void changeStatus(
+                                      u,
+                                      e.target.value as AdminUser["status"]
+                                    )
+                                  }
+                                >
+                                  <option value="Active">Active</option>
+                                  <option value="Suspended">Suspended</option>
+                                  <option value="Banned">Banned</option>
+                                </select>
+                              </div>
                             </td>
                             <td>
                               <div className="user-role-select">
@@ -320,6 +395,26 @@ export default function AdminUsers() {
                                   />
                                 ) : null}
                               </div>
+                            </td>
+                            <td>
+                              {u.role === "Technician" ? (
+                                u.technicianVerified ? (
+                                  <span className="mono-muted">Done</span>
+                                ) : u.technicianId ? (
+                                  <button
+                                    type="button"
+                                    className="dash-btn dash-btn--ghost dash-btn--sm"
+                                    disabled={verifying}
+                                    onClick={() => void verifyTech(u)}
+                                  >
+                                    {verifying ? "…" : "Verify"}
+                                  </button>
+                                ) : (
+                                  <span className="mono-muted">No profile</span>
+                                )
+                              ) : (
+                                <span className="mono-muted">—</span>
+                              )}
                             </td>
                           </tr>
                         )

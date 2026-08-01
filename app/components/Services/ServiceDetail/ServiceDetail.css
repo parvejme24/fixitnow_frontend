@@ -112,6 +112,37 @@
   text-transform: uppercase;
 }
 
+.sd-hero__visual {
+  position: relative;
+  width: min(100%, 520px);
+  aspect-ratio: 16 / 9;
+  margin: 0 0 18px;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--steel-800);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.sd-hero__photo,
+.sd-hero__visual .svc-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sd-hero__visual .svc-media__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sd-hero__visual .svc-media__label {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .sd-hero h1 {
   margin: 0;
   max-width: 18ch;

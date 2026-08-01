@@ -11,10 +11,11 @@ import {
   adminRoleToApi,
   fetchUsers,
   updateUserRole,
+  updateUserStatus,
 } from "@/lib/admin/users-api"
 import { useAuth } from "@/app/providers/AuthProvider"
 import { ApiError } from "@/lib/api"
-import type { AdminUser } from "@/app/lib/admin-data"
+import type { AccountStatus, AdminUser } from "@/app/lib/admin-data"
 
 export const adminUserKeys = {
   all: ["admin", "users"] as const,
@@ -70,6 +71,33 @@ export function useUpdateUserRole() {
                 status: updated.status || u.status,
                 joined: updated.joined || u.joined,
               }
+            : u
+        )
+      )
+      void qc.invalidateQueries({ queryKey: adminUserKeys.list() })
+    },
+  })
+}
+
+export function useUpdateUserStatus() {
+  const { token } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string
+      status: AccountStatus
+    }) => {
+      const updated = await updateUserStatus(id, status, requireToken(token))
+      return { id, status, updated }
+    },
+    onSuccess: ({ id, status, updated }) => {
+      qc.setQueryData<AdminUser[]>(adminUserKeys.list(), (prev) =>
+        (prev ?? []).map((u) =>
+          u.id === id
+            ? { ...u, status: updated.status || status }
             : u
         )
       )

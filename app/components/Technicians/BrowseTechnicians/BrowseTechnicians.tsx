@@ -13,7 +13,10 @@ import {
   type Technician,
 } from "@/app/lib/catalogue"
 import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
+import ProfileFace from "@/app/components/Shared/ProfileFace"
+import { useAuth } from "@/app/providers/AuthProvider"
 import { useAreas, useCategories, useTechnicians } from "@/lib/catalogue/hooks"
+import { techniciansWithAuthImage } from "@/lib/catalogue/with-auth-image"
 import "../../Services/BrowseServices/BrowseServices.css"
 
 type SortKey = "pop" | "rating" | "price-asc" | "price-desc"
@@ -81,13 +84,19 @@ function TechCard({ tech, index }: { tech: Technician; index: number }) {
     >
       <div className="tech-card__top">
         <div className="tech-card__avatar">
-          {tech.initials}
+          <ProfileFace
+            image={tech.image}
+            initials={tech.initials}
+            className="tech-card__face"
+          />
           {tech.online && <span className="tech-card__online" />}
         </div>
         <div>
           <h3 className="tech-card__name">{tech.name}</h3>
           <p className="tech-card__trade">
-            {tech.trade} · {tech.area}
+            {tech.trade}
+            {tech.area ? ` · ${tech.area}` : ""}
+            {tech.verified ? "" : " · Unverified"}
           </p>
         </div>
       </div>
@@ -110,8 +119,8 @@ function TechCard({ tech, index }: { tech: Technician; index: number }) {
           <span>Exp.</span>
         </div>
         <div>
-          <b>{tech.online ? "Now" : "Sun"}</b>
-          <span>Free</span>
+          <b>{tech.online ? "Now" : "Off"}</b>
+          <span>{tech.online ? "Online" : "Offline"}</span>
         </div>
       </div>
     </Link>
@@ -121,6 +130,7 @@ function TechCard({ tech, index }: { tech: Technician; index: number }) {
 export default function BrowseTechnicians() {
   const searchParams = useSearchParams()
   const reduceMotion = useReducedMotion() ?? false
+  const { user } = useAuth()
   const categoriesQuery = useCategories()
   const areasQuery = useAreas()
   const categories = categoriesQuery.data ?? []
@@ -158,7 +168,11 @@ export default function BrowseTechnicians() {
   )
 
   const techniciansQuery = useTechnicians(apiQuery)
-  const fetchedTechnicians = techniciansQuery.data?.items ?? []
+  const fetchedTechnicians = useMemo(
+    () =>
+      techniciansWithAuthImage(techniciansQuery.data?.items ?? [], user),
+    [techniciansQuery.data?.items, user]
+  )
   const totalFromApi =
     techniciansQuery.data?.meta?.total ?? fetchedTechnicians.length
 

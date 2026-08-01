@@ -95,15 +95,36 @@ export async function api<T>(
   }
 
   if (!res.ok || !json || json.success !== true) {
-    const err = json && "error" in json ? json.error : null
+    const err =
+      json && typeof json === "object" && "error" in json
+        ? (json as ApiErrorBody).error
+        : null
+    const loose =
+      json && typeof json === "object"
+        ? (json as Record<string, unknown>)
+        : null
+    const message =
+      err?.message ||
+      (typeof loose?.message === "string" ? loose.message : null) ||
+      (typeof asRecord(loose?.error)?.message === "string"
+        ? String(asRecord(loose?.error)?.message)
+        : null) ||
+      `Request failed (${res.status})`
+
     throw new ApiError(
-      err?.message ?? `Request failed (${res.status})`,
-      err?.code ?? "REQUEST_FAILED",
+      message,
+      err?.code ?? (typeof loose?.code === "string" ? loose.code : "REQUEST_FAILED"),
       res.status
     )
   }
 
   return json
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : null
 }
 
 /** Convenience helpers */

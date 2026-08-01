@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost, type ApiSuccess } from "@/lib/api"
+import { ApiError, apiGet, apiPatch, apiPost, type ApiSuccess } from "@/lib/api"
 import { getStoredToken } from "@/lib/auth/storage"
 import type {
   AuthPayload,
@@ -9,6 +9,7 @@ import type {
   ResetPasswordInput,
   UpdateMeInput,
 } from "@/lib/auth/types"
+import { absoluteMediaUrl } from "@/lib/auth/types"
 
 type LooseRecord = Record<string, unknown>
 
@@ -23,13 +24,29 @@ function pickString(...values: unknown[]) {
   return null
 }
 
+function normalizeTechnicianProfile(
+  raw: unknown
+): AuthUser["technicianProfile"] {
+  const obj = asRecord(raw)
+  if (!obj) return null
+  const id = pickString(obj.id)
+  if (!id) return null
+  return {
+    id,
+    trade: pickString(obj.trade) ?? null,
+    visitFee: typeof obj.visitFee === "number" ? obj.visitFee : null,
+    online: typeof obj.online === "boolean" ? obj.online : undefined,
+    verified: typeof obj.verified === "boolean" ? obj.verified : undefined,
+  }
+}
+
 export function normalizeUser(raw: unknown): AuthUser {
   const obj = asRecord(raw) ?? {}
   const roleRaw = String(obj.role ?? "CUSTOMER").toUpperCase()
   const role =
     roleRaw === "TECHNICIAN" || roleRaw === "ADMIN" ? roleRaw : "CUSTOMER"
 
-  const image =
+  const image = absoluteMediaUrl(
     pickString(
       obj.image,
       obj.avatar,
@@ -38,7 +55,8 @@ export function normalizeUser(raw: unknown): AuthUser {
       obj.photo,
       asRecord(obj.profile)?.image,
       asRecord(obj.profile)?.avatar
-    ) ?? null
+    )
+  )
 
   return {
     id: String(obj.id ?? ""),
@@ -51,8 +69,9 @@ export function normalizeUser(raw: unknown): AuthUser {
     isActive: typeof obj.isActive === "boolean" ? obj.isActive : undefined,
     createdAt: typeof obj.createdAt === "string" ? obj.createdAt : undefined,
     updatedAt: typeof obj.updatedAt === "string" ? obj.updatedAt : undefined,
-    technicianProfile:
-      (obj.technicianProfile as AuthUser["technicianProfile"]) ?? null,
+    technicianProfile: normalizeTechnicianProfile(
+      obj.technicianProfile ?? obj.technician
+    ),
   }
 }
 
@@ -119,11 +138,36 @@ export async function updateMeRequest(
   let body: FormData | Record<string, string>
 
   if (input.image instanceof File) {
+    const allowed = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/gif",
+    ])
+    if (!allowed.has(input.image.type)) {
+      throw new ApiError(
+        "Only JPEG, PNG, WEBP, or GIF images are allowed",
+        "INVALID_FILE",
+        400
+      )
+    }
+    if (input.image.size > 5 * 1024 * 1024) {
+      throw new ApiError(
+        "Image must be 5MB or smaller",
+        "FILE_TOO_LARGE",
+        400
+      )
+    }
+
     const form = new FormData()
     if (input.name !== undefined) form.append("name", input.name)
     if (input.phone !== undefined) form.append("phone", input.phone)
     if (input.initials !== undefined) form.append("initials", input.initials)
-    form.append("image", input.image)
+    // Multer: uploadProfileImageMiddleware.single("profileImage")
+    const filename =
+      input.image.name?.trim() ||
+      `profile.${input.image.type.split("/")[1] || "jpg"}`
+    form.append("profileImage", input.image, filename)
     body = form
   } else {
     body = {}

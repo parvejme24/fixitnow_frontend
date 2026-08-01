@@ -18,6 +18,8 @@ export type Area = {
   technicianCount: number
 }
 
+export type ServiceTag = "MOST_BOOKED" | "TOP_RATED" | "EMERGENCY"
+
 export type Service = {
   id: string
   cat: CategoryId
@@ -28,16 +30,24 @@ export type Service = {
   dur: string
   rating: number
   reviews: number
-  tag?: string
+  /** Raw API enum — format with `formatServiceTag` for display */
+  tag?: ServiceTag
   isFeatured?: boolean
+  /** Cover image URL from API (`image`) */
+  image?: string | null
+  isActive?: boolean
+  sortOrder?: number
 }
 
 export type Technician = {
   id: string
+  /** Linked auth user id when API includes `user` */
+  userId?: string | null
   name: string
   trade: string
   cats: CategoryId[]
   area: string
+  areaId?: string | null
   rating: number
   reviews: number
   jobs: number
@@ -46,12 +56,18 @@ export type Technician = {
   online: boolean
   skills: string[]
   initials: string
+  /** Profile photo URL when the linked user has one */
+  image?: string | null
   bio: string
   verified: boolean
+  coverKm: number
+  replyMins: number
+  phone?: string | null
   offeredServices?: Service[]
 }
 
 export type Review = {
+  id?: string
   author: string
   initials: string
   rating: number

@@ -46,7 +46,7 @@ export type UpdateMeInput = {
   name?: string
   phone?: string
   initials?: string
-  /** Optional profile photo — sent as multipart when present */
+  /** Optional profile photo — sent as multipart field `profileImage` */
   image?: File | null
 }
 
@@ -105,6 +105,9 @@ export function safeReturnPath(
   }
   if (path === "/bookings" || path.startsWith("/bookings/")) {
     return r === "CUSTOMER" ? next : fallback
+  }
+  if (path === "/dashboard/profile" || path.startsWith("/dashboard/profile/")) {
+    return next
   }
 
   return next

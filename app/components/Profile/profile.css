@@ -10,11 +10,17 @@
   --concrete: #edf1f4;
   --flare: #ff5a3c;
   --ease: cubic-bezier(0.22, 0.68, 0.32, 1);
-  width: min(720px, calc(100% - 32px));
-  margin: 40px auto 80px;
+  width: min(720px, 100%);
+  margin: 0 auto 40px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+}
+
+.profile-page--dash {
+  width: 100%;
+  max-width: 760px;
+  margin: 0;
 }
 
 .profile-refresh {
@@ -92,6 +98,33 @@
   font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.profile-avatar-clear {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--flare, #ff5a3c);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(14, 20, 27, 0.18);
+  transition: transform 0.15s var(--ease);
+}
+
+.profile-avatar-clear:hover {
+  transform: scale(1.06);
+}
+
+.profile-avatar-clear:focus-visible {
+  outline: 2px solid var(--hivis);
+  outline-offset: 2px;
 }
 
 .profile-eyebrow {

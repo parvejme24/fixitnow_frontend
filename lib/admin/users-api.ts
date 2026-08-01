@@ -36,7 +36,17 @@ function statusFromUser(user: AuthUser): AccountStatus {
   return "Active"
 }
 
-export function toAdminUser(user: AuthUser): AdminUser {
+function statusFromRaw(raw: unknown, user: AuthUser): AccountStatus {
+  const obj = asRecord(raw)
+  const status = String(obj?.status ?? obj?.accountStatus ?? "").toUpperCase()
+  if (status === "SUSPENDED") return "Suspended"
+  if (status === "BANNED" || status === "INACTIVE") return "Banned"
+  if (status === "ACTIVE") return "Active"
+  if (obj?.isActive === false) return "Banned"
+  return statusFromUser(user)
+}
+
+export function toAdminUser(user: AuthUser, raw?: unknown): AdminUser {
   return {
     id: user.id,
     name: user.name || "User",
@@ -46,7 +56,9 @@ export function toAdminUser(user: AuthUser): AdminUser {
     role: roleLabel(user.role),
     joined: formatJoined(user.createdAt),
     bookings: 0,
-    status: statusFromUser(user),
+    status: statusFromRaw(raw, user),
+    technicianId: user.technicianProfile?.id ?? null,
+    technicianVerified: user.technicianProfile?.verified ?? false,
   }
 }
 
@@ -56,19 +68,26 @@ export function adminRoleToApi(role: AdminUser["role"]): AuthRole {
   return "CUSTOMER"
 }
 
-function listUsersFromResponse(data: unknown): AuthUser[] {
-  if (Array.isArray(data)) return data.map(normalizeUser)
+function listUsersFromResponse(data: unknown): AdminUser[] {
+  if (Array.isArray(data)) {
+    return data.map((row) => toAdminUser(normalizeUser(row), row))
+  }
   const obj = asRecord(data)
   if (!obj) return []
   return asArray(obj.users ?? obj.items ?? obj.results ?? obj.data).map(
-    normalizeUser
+    (row) => toAdminUser(normalizeUser(row), row)
   )
 }
 
-/** Admin: list every account. */
+/** Admin: list every account (`/admin/users`, fallback `/auth/users`). */
 export async function fetchUsers(token: string) {
-  const res = await apiGet<unknown>("/auth/users", undefined, token)
-  return listUsersFromResponse(res.data).map(toAdminUser)
+  try {
+    const res = await apiGet<unknown>("/admin/users", undefined, token)
+    return listUsersFromResponse(res.data)
+  } catch {
+    const res = await apiGet<unknown>("/auth/users", undefined, token)
+    return listUsersFromResponse(res.data)
+  }
 }
 
 /** Admin: change a user's role. */
@@ -84,5 +103,21 @@ export async function updateUserRole(
   )
   const obj = asRecord(res.data)
   const raw = obj?.user ?? res.data
-  return toAdminUser(normalizeUser(raw))
+  return toAdminUser(normalizeUser(raw), raw)
+}
+
+/** Admin: suspend / restore / ban via PATCH /admin/users/:id */
+export async function updateUserStatus(
+  id: string,
+  status: AccountStatus,
+  token: string
+) {
+  const body = {
+    status: status.toUpperCase(),
+    isActive: status === "Active",
+  }
+  const res = await apiPatch<unknown>(`/admin/users/${id}`, body, token)
+  const obj = asRecord(res.data)
+  const raw = obj?.user ?? res.data
+  return toAdminUser(normalizeUser(raw), raw)
 }

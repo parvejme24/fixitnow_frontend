@@ -11,6 +11,9 @@ export type AdminUser = {
   joined: string
   bookings: number
   status: AccountStatus
+  /** Present when the account has a technician profile */
+  technicianId?: string | null
+  technicianVerified?: boolean
 }
 
 export type BookingStatus =
