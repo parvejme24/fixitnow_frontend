@@ -93,15 +93,27 @@ export async function fetchTechnicians(query: TechniciansQuery = {}) {
     q: query.q,
     online: query.online,
   })
-  return listPayload(res, normalizeTechnician) as {
+  const payload = listPayload(res, normalizeTechnician) as {
     items: Technician[]
     meta?: ListMeta
+  }
+  // Public browse should not list unverified technicians (API may still return them).
+  const verifiedOnly = query.verifiedOnly !== false
+  if (!verifiedOnly) return payload
+  const items = payload.items.filter((t) => t.verified)
+  return {
+    items,
+    meta: payload.meta
+      ? { ...payload.meta, total: items.length }
+      : undefined,
   }
 }
 
 export async function fetchTopTechnicians() {
   const res = await apiGet<unknown>("/technicians/top")
-  return listPayload(res, normalizeTechnician).items as Technician[]
+  return listPayload(res, normalizeTechnician).items.filter(
+    (t) => t.verified
+  ) as Technician[]
 }
 
 export async function fetchTechnician(id: string) {

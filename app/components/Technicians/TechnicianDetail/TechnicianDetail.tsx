@@ -34,6 +34,7 @@ import {
   useCreateBooking,
 } from "@/lib/bookings/hooks"
 import {
+  useCategories,
   useService,
   useServices,
   useTechnician,
@@ -184,6 +185,7 @@ function StarsInline({ rating }: { rating: number }) {
 export default function TechnicianDetail() {
   const searchParams = useSearchParams()
   const reduceMotion = useReducedMotion() ?? false
+  const { user } = useAuth()
 
   const id = searchParams.get("id")
   const serviceParam = searchParams.get("service")
@@ -222,6 +224,16 @@ export default function TechnicianDetail() {
     serviceParam,
   ])
 
+  const canViewUnverified = useMemo(() => {
+    if (!tech || !user) return false
+    if (user.role === "ADMIN") return true
+    if (user.role !== "TECHNICIAN") return false
+    return (
+      Boolean(user.technicianProfile?.id && user.technicianProfile.id === tech.id) ||
+      Boolean(user.id && tech.userId && user.id === tech.userId)
+    )
+  }, [tech, user])
+
   const loading =
     (Boolean(id) && techQuery.isLoading) ||
     (!id &&
@@ -255,6 +267,21 @@ export default function TechnicianDetail() {
         <p>
           Open a profile from the{" "}
           <Link href="/technicians">technicians list</Link>.
+        </p>
+      </div>
+    )
+  }
+
+  if (!tech.verified && !canViewUnverified) {
+    return (
+      <div className="td-page" style={{ minHeight: "50vh", padding: 40 }}>
+        <h1>Technician not listed</h1>
+        <p>
+          This profile is waiting for admin verification and is not shown to
+          customers yet.
+        </p>
+        <p>
+          <Link href="/technicians">Browse verified technicians</Link>
         </p>
       </div>
     )
@@ -962,14 +989,48 @@ function SkillsCard({
   fname: string
   style?: CSSProperties
 }) {
+  const categoriesQuery = useCategories()
+  const categories = useMemo(() => {
+    const names = tech.catNames ?? []
+    if (names.length > 0) return names
+    const byId = new Map(
+      (categoriesQuery.data ?? []).map((c) => [c.id, c.name] as const)
+    )
+    return tech.cats
+      .map((id) => byId.get(id))
+      .filter((name): name is string => Boolean(name))
+  }, [tech.catNames, tech.cats, categoriesQuery.data])
+
   return (
     <article className="td-card td-reveal" style={style}>
       <h2>What {fname} handles</h2>
-      <div className="td-skills">
-        {tech.skills.map((skill) => (
-          <span key={skill}>{skill}</span>
-        ))}
-      </div>
+      {categories.length ? (
+        <>
+          <p className="td-subhead" style={{ marginTop: 0 }}>
+            Categories
+          </p>
+          <div className="td-skills td-skills--cats">
+            {categories.map((label) => (
+              <span key={label}>{label}</span>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {tech.skills.length ? (
+        <>
+          <p className="td-subhead">Skills</p>
+          <div className="td-skills">
+            {tech.skills.map((skill) => (
+              <span key={skill}>{skill}</span>
+            ))}
+          </div>
+        </>
+      ) : null}
+      {!categories.length && !tech.skills.length ? (
+        <p style={{ color: "var(--steel-400)", margin: "0 0 12px" }}>
+          {fname} has not listed categories or skills yet.
+        </p>
+      ) : null}
       <p className="td-subhead">Services offered</p>
       {services.length ? (
         <div className="td-svc-grid">

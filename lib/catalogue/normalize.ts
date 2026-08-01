@@ -10,7 +10,9 @@ import { absoluteMediaUrl } from "@/lib/auth/types"
 type Loose = Record<string, unknown>
 
 function asRecord(value: unknown): Loose | null {
-  return value && typeof value === "object" ? (value as Loose) : null
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Loose)
+    : null
 }
 
 function asArray(value: unknown): unknown[] {
@@ -124,13 +126,31 @@ function categoryIdsFromTechnician(obj: Loose): string[] {
   const cats = asArray(obj.categories)
   const ids: string[] = []
   for (const item of cats) {
+    if (typeof item === "string") {
+      if (item) ids.push(item)
+      continue
+    }
     const row = asRecord(item)
     if (!row) continue
     const nested = asRecord(row.category)
-    const id = str(nested?.id || row.id)
+    const id = str(nested?.id || row.categoryId || row.id)
     if (id) ids.push(id)
   }
   return ids
+}
+
+function categoryNamesFromTechnician(obj: Loose): string[] {
+  const cats = asArray(obj.categories)
+  const names: string[] = []
+  for (const item of cats) {
+    if (typeof item === "string") continue
+    const row = asRecord(item)
+    if (!row) continue
+    const nested = asRecord(row.category)
+    const name = str(nested?.name || row.name)
+    if (name) names.push(name)
+  }
+  return names
 }
 
 function skillsFromTechnician(obj: Loose): string[] {
@@ -143,14 +163,26 @@ function skillsFromTechnician(obj: Loose): string[] {
     .filter(Boolean)
 }
 
+function areaFromTechnician(obj: Loose): { name: string; id: string | null } {
+  const single = asRecord(obj.area)
+  if (single) {
+    return { name: str(single.name), id: str(single.id) || null }
+  }
+  const areas = asArray(obj.areas)
+  const first = asRecord(areas[0])
+  if (first) {
+    return { name: str(first.name), id: str(first.id) || null }
+  }
+  return { name: "", id: null }
+}
+
 export function normalizeTechnician(raw: unknown): Technician {
   const obj = asRecord(raw) ?? {}
   const user = asRecord(obj.user)
-  const area = asRecord(obj.area)
+  const areaInfo = areaFromTechnician(obj)
   const offered = asArray(obj.offeredServices).map(normalizeService)
 
-  // Live API: area can be null; bio can be null; skills are { id, name }[]
-  const areaName = area ? str(area.name) : ""
+  // Live API: area/areas can vary; bio can be null; skills are { id, name }[]
   const bioRaw = obj.bio
   const bio = bioRaw == null ? "" : str(bioRaw)
 
@@ -160,8 +192,9 @@ export function normalizeTechnician(raw: unknown): Technician {
     name: str(user?.name ?? obj.name, "Technician"),
     trade: str(obj.trade, "General"),
     cats: categoryIdsFromTechnician(obj),
-    area: areaName,
-    areaId: area ? str(area.id) || null : null,
+    catNames: categoryNamesFromTechnician(obj),
+    area: areaInfo.name,
+    areaId: areaInfo.id,
     rating: num(obj.ratingAvg ?? obj.rating),
     reviews: num(obj.reviewCount ?? obj.reviews),
     jobs: num(obj.jobsCompleted ?? obj.jobs),

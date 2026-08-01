@@ -29,12 +29,12 @@ export default function TopTechnicians() {
   const reduceMotion = useReducedMotion() ?? false
   const gridRef = useRef<HTMLDivElement>(null)
   const { user } = useAuth()
-  const { data: rawTechs = [], isLoading } = useTopTechnicians()
+  const { data: rawTechs = [], isLoading, isError } = useTopTechnicians()
   const techs = useMemo(
     () => techniciansWithAuthImage(rawTechs, user),
     [rawTechs, user]
   )
-  const showSkeleton = isLoading && !reduceMotion
+  const showSkeleton = isLoading && techs.length === 0
 
   useEffect(() => {
     if (showSkeleton) return
@@ -56,10 +56,16 @@ export default function TopTechnicians() {
           }
         }
       },
-      { threshold: 0.12 }
+      { threshold: 0.08, rootMargin: "0px 0px -8% 0px" }
     )
 
-    cards.forEach((el) => io.observe(el))
+    cards.forEach((el) => {
+      const rect = el.getBoundingClientRect()
+      const inView =
+        rect.top < window.innerHeight * 0.92 && rect.bottom > 0
+      if (inView) el.classList.add("is-in")
+      else io.observe(el)
+    })
     return () => io.disconnect()
   }, [showSkeleton, reduceMotion, techs.length])
 
@@ -84,7 +90,19 @@ export default function TopTechnicians() {
         <div ref={gridRef} className="grid grid-3" aria-busy={showSkeleton}>
           {showSkeleton
             ? Array.from({ length: 3 }, (_, i) => <SkeletonCard key={i} />)
-            : techs.slice(0, 3).map((tech, index) => (
+            : isError && techs.length === 0
+              ? (
+                <p style={{ gridColumn: "1 / -1", color: "var(--steel-300)" }}>
+                  Could not load technicians right now.
+                </p>
+              )
+            : techs.slice(0, 3).map((tech, index) => {
+                const tags =
+                  (tech.catNames?.length ? tech.catNames : tech.skills).slice(
+                    0,
+                    3
+                  )
+                return (
                 <Link
                   key={tech.id}
                   href={`/technician?id=${tech.id}`}
@@ -113,15 +131,16 @@ export default function TopTechnicians() {
                         )}
                       </h3>
                       <p className="tech-card__role">
-                        {tech.trade} · {tech.area}
+                        {tech.trade}
+                        {tech.area ? ` · ${tech.area}` : ""}
                       </p>
                     </div>
                   </div>
 
                   <div className="tech-card__skills">
-                    {tech.skills.slice(0, 3).map((skill) => (
-                      <span key={skill} className="skill-tag">
-                        {skill}
+                    {tags.map((tag) => (
+                      <span key={tag} className="skill-tag">
+                        {tag}
                       </span>
                     ))}
                   </div>
@@ -141,7 +160,8 @@ export default function TopTechnicians() {
                     </div>
                   </div>
                 </Link>
-              ))}
+                )
+              })}
         </div>
       </div>
     </section>

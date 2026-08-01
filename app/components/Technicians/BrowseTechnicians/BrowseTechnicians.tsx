@@ -56,6 +56,7 @@ function filterTechnicians(
 ) {
   const query = q.trim().toLowerCase()
   let filtered = list.filter((t) => {
+    if (!t.verified) return false
     const hay = `${t.name} ${t.trade} ${t.skills.join(" ")} ${t.area}`.toLowerCase()
     if (query && !hay.includes(query)) return false
     if (cats.length && !t.cats.some((c) => cats.includes(c))) return false
@@ -76,6 +77,9 @@ function filterTechnicians(
 }
 
 function TechCard({ tech, index }: { tech: Technician; index: number }) {
+  const tags =
+    (tech.catNames?.length ? tech.catNames : tech.skills).slice(0, 3)
+
   return (
     <Link
       href={`/technician?id=${tech.id}`}
@@ -101,8 +105,8 @@ function TechCard({ tech, index }: { tech: Technician; index: number }) {
         </div>
       </div>
       <div className="tech-card__skills">
-        {tech.skills.slice(0, 3).map((skill) => (
-          <span key={skill}>{skill}</span>
+        {tags.map((tag) => (
+          <span key={tag}>{tag}</span>
         ))}
       </div>
       <p className="tech-card__rating">
@@ -176,16 +180,8 @@ export default function BrowseTechnicians() {
   const totalFromApi =
     techniciansQuery.data?.meta?.total ?? fetchedTechnicians.length
 
-  const loading =
-    (categoriesQuery.isLoading ||
-      areasQuery.isLoading ||
-      techniciansQuery.isLoading) &&
-    !fetchedTechnicians.length
-  const hasError =
-    (techniciansQuery.isError ||
-      categoriesQuery.isError ||
-      areasQuery.isError) &&
-    !fetchedTechnicians.length
+  const hasError = techniciansQuery.isError && !fetchedTechnicians.length
+  const loading = techniciansQuery.isLoading && !fetchedTechnicians.length
   const isRefreshing = techniciansQuery.isFetching && !loading
 
   useEffect(() => {

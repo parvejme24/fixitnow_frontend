@@ -9,17 +9,12 @@ import {
   CheckCircle2Icon,
   HomeIcon,
   LoaderCircleIcon,
-  ShieldIcon,
   WrenchIcon,
 } from "lucide-react"
 
 import { useAuth } from "@/app/providers/AuthProvider"
 import { getAuthErrorMessage } from "@/lib/auth/errors"
-import {
-  dashboardForRole,
-  toApiRole,
-  type UiRole,
-} from "@/lib/auth/types"
+import { dashboardForRole, type AuthRole } from "@/lib/auth/types"
 
 import AuthShell from "../AuthShell/AuthShell"
 import { launchAuthConfetti } from "../launchAuthConfetti"
@@ -28,9 +23,10 @@ import { useAuthToast } from "../Toast/AuthToast"
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PHONE_RE = /^01[3-9]\d{8}$/
 
-type Role = UiRole
+/** Public signup only — admins are seeded / promoted from the dashboard. */
+type RegisterRole = "customer" | "technician"
 
-const PERKS: Record<Role, string[]> = {
+const PERKS: Record<RegisterRole, string[]> = {
   customer: [
     "See booked and free hours before you commit",
     "Pay only after a technician accepts",
@@ -40,11 +36,6 @@ const PERKS: Record<Role, string[]> = {
     "Set your weekly hours once, reuse them forever",
     "Accept or decline in one tap",
     "Payout released when the customer confirms",
-  ],
-  admin: [
-    "Ban, suspend and restore accounts",
-    "Watch revenue and dispute volume live",
-    "Add or retire service categories",
   ],
 }
 
@@ -71,31 +62,30 @@ const AREAS = [
 ] as const
 
 const ROLE_META: Record<
-  Role,
-  { label: string; desc: string; icon: typeof HomeIcon }
+  RegisterRole,
+  {
+    label: string
+    desc: string
+    icon: typeof HomeIcon
+    api: Exclude<AuthRole, "ADMIN">
+  }
 > = {
   customer: {
     label: "Customer",
     desc: "Book a technician",
     icon: HomeIcon,
+    api: "CUSTOMER",
   },
   technician: {
     label: "Technician",
     desc: "Take on jobs",
     icon: WrenchIcon,
-  },
-  admin: {
-    label: "Admin",
-    desc: "Moderate platform",
-    icon: ShieldIcon,
+    api: "TECHNICIAN",
   },
 }
 
 type Errors = Partial<
-  Record<
-    "name" | "email" | "phone" | "password" | "trade" | "terms" | "role",
-    string
-  >
+  Record<"name" | "email" | "phone" | "password" | "trade" | "terms", string>
 >
 
 function passwordScore(value: string) {
@@ -116,7 +106,7 @@ function passwordNote(value: string) {
   return "Strong password."
 }
 
-function RegisterAside({ role }: { role: Role }) {
+function RegisterAside({ role }: { role: RegisterRole }) {
   return (
     <>
       <p className="auth-eyebrow">Two minutes, no card</p>
@@ -126,8 +116,9 @@ function RegisterAside({ role }: { role: Role }) {
         of the job.
       </h2>
       <p className="auth-lede">
-        Your role decides what you see after signing up — a booking dashboard, a
-        scheduler, or the moderation console. You can only be one at a time.
+        Sign up as a customer to book jobs, or as a technician to take them.
+        Platform admins are created separately and manage roles from the
+        dashboard.
       </p>
 
       <ul className="perk-list" id="perks">
@@ -146,8 +137,8 @@ function RegisterForm({
   role,
   setRole,
 }: {
-  role: Role
-  setRole: (role: Role) => void
+  role: RegisterRole
+  setRole: (role: RegisterRole) => void
 }) {
   const router = useRouter()
   const reduceMotion = useReducedMotion() ?? false
@@ -237,7 +228,7 @@ function RegisterForm({
         email: email.trim(),
         phone: phone.trim(),
         password,
-        role: toApiRole(role),
+        role: ROLE_META[role].api,
         ...(role === "technician"
           ? {
               trade,
@@ -288,7 +279,7 @@ function RegisterForm({
             Role <span className="field__req">*</span>
           </span>
           <div className="role-grid" role="radiogroup" aria-label="Account role">
-            {(Object.keys(ROLE_META) as Role[]).map((key) => {
+            {(Object.keys(ROLE_META) as RegisterRole[]).map((key) => {
               const meta = ROLE_META[key]
               const Icon = meta.icon
               const selected = role === key
@@ -534,7 +525,7 @@ function RegisterForm({
 }
 
 export default function RegisterPageView() {
-  const [role, setRole] = useState<Role>("customer")
+  const [role, setRole] = useState<RegisterRole>("customer")
 
   return (
     <AuthShell aside={<RegisterAside role={role} />}>

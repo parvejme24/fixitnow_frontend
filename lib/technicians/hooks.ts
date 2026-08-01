@@ -97,6 +97,8 @@ export function useUpdateMyCategories() {
       qc.setQueryData(technicianKeys.me(), tech)
       void qc.invalidateQueries({ queryKey: technicianKeys.me() })
       void qc.invalidateQueries({ queryKey: catalogueKeys.technician(tech.id) })
+      void qc.invalidateQueries({ queryKey: catalogueKeys.technicians() })
+      void qc.invalidateQueries({ queryKey: catalogueKeys.topTechnicians() })
     },
   })
 }
@@ -111,6 +113,8 @@ export function useUpdateMySkills() {
       qc.setQueryData(technicianKeys.me(), tech)
       void qc.invalidateQueries({ queryKey: technicianKeys.me() })
       void qc.invalidateQueries({ queryKey: catalogueKeys.technician(tech.id) })
+      void qc.invalidateQueries({ queryKey: catalogueKeys.technicians() })
+      void qc.invalidateQueries({ queryKey: catalogueKeys.topTechnicians() })
     },
   })
 }

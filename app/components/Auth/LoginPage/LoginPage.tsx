@@ -69,7 +69,7 @@ function LoginAside() {
       </h2>
       <p className="auth-lede">
         Bookings, payments and reviews all live in one dashboard — shaped by
-        whichever role you signed up with.
+        your account role.
       </p>
 
       <blockquote className="auth-quote">

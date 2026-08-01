@@ -776,111 +776,58 @@ export default function TechnicianDashboard() {
               )}
             </section>
 
-            <div className="dash-grid-2">
-              <section className="dash-card">
-                <h2 className="dash-card__title">Today and tomorrow</h2>
-                <div className="job-strip" style={{ marginTop: 14 }}>
-                  {(todayTomorrow.length ? todayTomorrow : upcoming.slice(0, 4)).map(
-                    (b) => {
-                      const label = advanceLabel(rawById.get(b.id))
-                      return (
-                        <div key={b.id} className="job-mini">
-                          <div className="job-mini__top">
-                            <StatusBadge status={b.status} />
-                            <strong>{formatTaka(b.amount)}</strong>
-                          </div>
-                          <strong>{b.service}</strong>
-                          <div
-                            style={{
-                              color: "var(--steel-400)",
-                              fontSize: "0.85rem",
-                            }}
-                          >
-                            {b.customer.name} · {b.area}
-                          </div>
-                          <div
-                            style={{
-                              fontFamily: "var(--font-mono)",
-                              fontSize: "0.72rem",
-                              marginTop: 6,
-                            }}
-                          >
-                            {b.date} · {b.time}
-                          </div>
-                          {label ? (
-                            <button
-                              type="button"
-                              className="dash-btn dash-btn--primary dash-btn--sm"
-                              style={{ marginTop: 10 }}
-                              disabled={advancingId === b.id}
-                              onClick={() => void advanceStatus(b.id)}
-                            >
-                              {advancingId === b.id ? "Updating…" : label}
-                            </button>
-                          ) : null}
+            <section className="dash-card">
+              <h2 className="dash-card__title">Today and tomorrow</h2>
+              <div className="job-strip" style={{ marginTop: 14 }}>
+                {(todayTomorrow.length ? todayTomorrow : upcoming.slice(0, 4)).map(
+                  (b) => {
+                    const label = advanceLabel(rawById.get(b.id))
+                    return (
+                      <div key={b.id} className="job-mini">
+                        <div className="job-mini__top">
+                          <StatusBadge status={b.status} />
+                          <strong>{formatTaka(b.amount)}</strong>
                         </div>
-                      )
-                    }
-                  )}
-                  {!todayTomorrow.length && !upcoming.length && (
-                    <p style={{ color: "var(--steel-400)" }}>
-                      No jobs in the next two days.
-                    </p>
-                  )}
-                </div>
-              </section>
-
-              <section className="dash-card">
-                <h2 className="dash-card__title">Profile snapshot</h2>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    marginTop: 14,
-                  }}
-                >
-                  <ProfileFace
-                    image={user?.image ?? tech?.image}
-                    initials={
-                      user?.initials ||
-                      tech?.initials ||
-                      name.slice(0, 2).toUpperCase()
-                    }
-                    className="dash-avatar"
-                  />
-                  <div>
-                    <strong style={{ display: "block" }}>{name}</strong>
-                    <span
-                      style={{ fontSize: "0.82rem", color: "var(--steel-400)" }}
-                    >
-                      {tech?.trade || "Set your trade"} ·{" "}
-                      {isVerified ? "Verified" : "Unverified"}
-                    </span>
-                  </div>
-                </div>
-                <div className="tip-box">
-                  {isVerified
-                    ? "Keep slots open this week so customers can book you."
-                    : "Ask an admin to verify you, then open availability and categories."}
-                </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    className="dash-btn dash-btn--primary dash-btn--sm"
-                    onClick={() => setTab("Public profile")}
-                  >
-                    Edit public profile
-                  </button>
-                  <Link
-                    href="/dashboard/profile"
-                    className="dash-btn dash-btn--ghost dash-btn--sm"
-                  >
-                    Photo & account
-                  </Link>
-                </div>
-              </section>
-            </div>
+                        <strong>{b.service}</strong>
+                        <div
+                          style={{
+                            color: "var(--steel-400)",
+                            fontSize: "0.85rem",
+                          }}
+                        >
+                          {b.customer.name} · {b.area}
+                        </div>
+                        <div
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: "0.72rem",
+                            marginTop: 6,
+                          }}
+                        >
+                          {b.date} · {b.time}
+                        </div>
+                        {label ? (
+                          <button
+                            type="button"
+                            className="dash-btn dash-btn--primary dash-btn--sm"
+                            style={{ marginTop: 10 }}
+                            disabled={advancingId === b.id}
+                            onClick={() => void advanceStatus(b.id)}
+                          >
+                            {advancingId === b.id ? "Updating…" : label}
+                          </button>
+                        ) : null}
+                      </div>
+                    )
+                  }
+                )}
+                {!todayTomorrow.length && !upcoming.length && (
+                  <p style={{ color: "var(--steel-400)" }}>
+                    No jobs in the next two days.
+                  </p>
+                )}
+              </div>
+            </section>
           </>
         )}
 

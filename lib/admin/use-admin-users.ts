@@ -40,7 +40,7 @@ export function useAdminUsersQuery() {
 }
 
 export function useUpdateUserRole() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({
@@ -50,6 +50,13 @@ export function useUpdateUserRole() {
       id: string
       role: AdminUser["role"]
     }) => {
+      if (user?.id && id === user.id) {
+        throw new ApiError(
+          "You cannot change your own account role.",
+          "FORBIDDEN",
+          403
+        )
+      }
       const updated = await updateUserRole(
         id,
         adminRoleToApi(role),

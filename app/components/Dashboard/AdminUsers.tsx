@@ -12,6 +12,7 @@ import {
 
 import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
 import type { AdminUser } from "@/app/lib/admin-data"
+import { useAuth } from "@/app/providers/AuthProvider"
 import {
   getUserErrorMessage,
   useAdminUsersQuery,
@@ -71,6 +72,7 @@ function UserAvatar({ user }: { user: AdminUser }) {
 }
 
 export default function AdminUsers() {
+  const { user: me } = useAuth()
   const { toasts, pushToast } = useDashToasts()
   const usersQuery = useAdminUsersQuery()
   const roleMutation = useUpdateUserRole()
@@ -117,6 +119,14 @@ export default function AdminUsers() {
 
   const changeRole = async (user: AdminUser, role: AdminUser["role"]) => {
     if (role === user.role || roleMutation.isPending) return
+    if (me?.id && user.id === me.id) {
+      pushToast(
+        "Cannot change your role",
+        "You cannot change your own account role.",
+        "error"
+      )
+      return
+    }
     setPendingId(user.id)
     try {
       await roleMutation.mutateAsync({ id: user.id, role })
@@ -171,8 +181,8 @@ export default function AdminUsers() {
           <div>
             <h1 className="dash-title">All users</h1>
             <p className="dash-sub">
-              Accounts from the API — change roles with the dropdown in each
-              row.
+              Promote customers or technicians to admin, or change roles between
+              accounts. You cannot change your own role.
             </p>
           </div>
           <div className="dash-head__actions">
@@ -315,6 +325,7 @@ export default function AdminUsers() {
                     </thead>
                     <tbody>
                       {pageRows.map((u) => {
+                        const isSelf = Boolean(me?.id && u.id === me.id)
                         const busy =
                           pendingId === u.id && roleMutation.isPending
                         const verifying =
@@ -325,7 +336,10 @@ export default function AdminUsers() {
                               <div className="cell-person">
                                 <UserAvatar user={u} />
                                 <div className="cell-stack">
-                                  <strong>{u.name}</strong>
+                                  <strong>
+                                    {u.name}
+                                    {isSelf ? " (you)" : ""}
+                                  </strong>
                                   <small className="mono-muted">{u.email}</small>
                                 </div>
                               </div>
@@ -351,8 +365,9 @@ export default function AdminUsers() {
                                   className="dash-input user-role-select__input"
                                   value={u.status}
                                   disabled={
-                                    statusPendingId === u.id &&
-                                    statusMutation.isPending
+                                    isSelf ||
+                                    (statusPendingId === u.id &&
+                                      statusMutation.isPending)
                                   }
                                   aria-label={`Change status for ${u.name}`}
                                   onChange={(e) =>
@@ -369,32 +384,36 @@ export default function AdminUsers() {
                               </div>
                             </td>
                             <td>
-                              <div className="user-role-select">
-                                <select
-                                  className="dash-input user-role-select__input"
-                                  value={u.role}
-                                  disabled={busy}
-                                  aria-label={`Change role for ${u.name}`}
-                                  onChange={(e) =>
-                                    void changeRole(
-                                      u,
-                                      e.target.value as AdminUser["role"]
-                                    )
-                                  }
-                                >
-                                  {ROLE_OPTIONS.map((role) => (
-                                    <option key={role} value={role}>
-                                      {role}
-                                    </option>
-                                  ))}
-                                </select>
-                                {busy ? (
-                                  <LoaderCircleIcon
-                                    size={14}
-                                    className="animate-spin user-role-select__spin"
-                                  />
-                                ) : null}
-                              </div>
+                              {isSelf ? (
+                                <span className="mono-muted">Your role</span>
+                              ) : (
+                                <div className="user-role-select">
+                                  <select
+                                    className="dash-input user-role-select__input"
+                                    value={u.role}
+                                    disabled={busy}
+                                    aria-label={`Change role for ${u.name}`}
+                                    onChange={(e) =>
+                                      void changeRole(
+                                        u,
+                                        e.target.value as AdminUser["role"]
+                                      )
+                                    }
+                                  >
+                                    {ROLE_OPTIONS.map((role) => (
+                                      <option key={role} value={role}>
+                                        {role}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {busy ? (
+                                    <LoaderCircleIcon
+                                      size={14}
+                                      className="animate-spin user-role-select__spin"
+                                    />
+                                  ) : null}
+                                </div>
+                              )}
                             </td>
                             <td>
                               {u.role === "Technician" ? (

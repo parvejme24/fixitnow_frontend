@@ -46,6 +46,8 @@ export type Technician = {
   name: string
   trade: string
   cats: CategoryId[]
+  /** Display names for `cats` from the API */
+  catNames: string[]
   area: string
   areaId?: string | null
   rating: number
@@ -97,6 +99,8 @@ export type TechniciansQuery = {
   areaId?: string
   q?: string
   online?: boolean
+  /** When true (default for public lists), only verified technicians are returned */
+  verifiedOnly?: boolean
 }
 
 export type TechnicianSlot = {

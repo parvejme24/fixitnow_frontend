@@ -31,7 +31,8 @@ export type RegisterInput = {
   email: string
   phone: string
   password: string
-  role: AuthRole
+  /** Public signup is customer or technician only; admins are seeded/promoted. */
+  role: Exclude<AuthRole, "ADMIN">
   trade?: string
   experienceYrs?: number
   area?: string
