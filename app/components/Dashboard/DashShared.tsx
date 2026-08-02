@@ -31,6 +31,7 @@ export function StatCard({
   decimals = 0,
   delay = 0,
   animate = true,
+  onClick,
 }: {
   icon: ReactNode
   value: number
@@ -42,14 +43,29 @@ export function StatCard({
   decimals?: number
   delay?: number
   animate?: boolean
+  onClick?: () => void
 }) {
   const grouped = prefix === "৳"
   const ref = useCountUp(value, animate, decimals, 1300, grouped)
+  const interactive = Boolean(onClick)
   return (
     <div
-      className="stat-card"
+      className={`stat-card${interactive ? " stat-card--clickable" : ""}`}
       data-reveal
       style={{ animationDelay: `${delay}ms` }}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                onClick?.()
+              }
+            }
+          : undefined
+      }
     >
       <div
         className={`stat-card__icon${variant ? ` stat-card__icon--${variant}` : ""}`}

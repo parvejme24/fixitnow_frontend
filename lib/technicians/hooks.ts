@@ -178,13 +178,19 @@ export function useVerifyTechnician() {
       void qc.invalidateQueries({ queryKey: catalogueKeys.technician(tech.id) })
       void qc.invalidateQueries({ queryKey: catalogueKeys.topTechnicians() })
       void qc.invalidateQueries({ queryKey: technicianKeys.detail(tech.id) })
-      qc.setQueryData<AdminUser[]>(adminUserKeys.list(), (prev) =>
-        (prev ?? []).map((u) =>
-          u.technicianId === tech.id
-            ? { ...u, technicianVerified: true }
-            : u
-        )
+      qc.setQueriesData<AdminUser[]>(
+        { queryKey: adminUserKeys.all },
+        (prev) =>
+          (prev ?? []).map((u) =>
+            u.technicianId === tech.id
+              ? { ...u, technicianVerified: true }
+              : u
+          )
       )
+      void qc.invalidateQueries({ queryKey: adminUserKeys.all })
+      void qc.invalidateQueries({
+        queryKey: [...catalogueKeys.all, "technicians"],
+      })
     },
   })
 }

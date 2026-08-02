@@ -1,0 +1,189 @@
+.pay-result {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background: #f7f9fb;
+  color: #0e141b;
+  font-family: var(--font-dispatch-sans), system-ui, sans-serif;
+  text-align: center;
+}
+
+.pay-result__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: min(440px, 100%);
+  margin: 0 auto;
+  text-align: center;
+}
+
+.pay-result__icon {
+  display: block;
+  margin: 0 auto 14px;
+  flex-shrink: 0;
+}
+
+.pay-result h1 {
+  margin: 0;
+  font-family: var(--font-dispatch-display), sans-serif;
+  font-size: clamp(1.6rem, 4vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.pay-result__meta {
+  margin: 10px 0 0;
+  max-width: 36ch;
+  color: #6e8091;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.pay-result__amount {
+  margin: 18px 0 0;
+  font-family: var(--font-dispatch-display), sans-serif;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  text-align: center;
+}
+
+.pay-result__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 28px;
+  width: 100%;
+}
+
+.pay-result a:not(.dash-btn) {
+  color: #0a7a58;
+  font-weight: 700;
+}
+
+/* SurjoPay sandbox checkout */
+.surjo {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 28px 16px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 201, 60, 0.18), transparent 40%),
+    #0e141b;
+  color: #fff;
+  font-family: var(--font-dispatch-sans), system-ui, sans-serif;
+}
+
+.surjo__card {
+  width: min(420px, 100%);
+  padding: 28px 24px;
+  border-radius: 16px;
+  background: #131b24;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+
+.surjo__brand {
+  margin: 0 0 6px;
+  font-family: var(--font-dispatch-display), sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffc93c;
+  text-transform: uppercase;
+}
+
+.surjo__sandbox {
+  display: inline-flex;
+  margin-bottom: 18px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 201, 60, 0.14);
+  color: #ffc93c;
+  font-family: var(--font-hivis-mono), monospace;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.surjo__amount {
+  margin: 8px 0 4px;
+  font-family: var(--font-dispatch-display), sans-serif;
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.surjo__meta {
+  margin: 0 0 22px;
+  color: #9aabb8;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.surjo__actions {
+  display: grid;
+  gap: 10px;
+}
+
+.surjo__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  border: 0;
+  border-radius: 10px;
+  font-family: var(--font-dispatch-display), sans-serif;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.surjo__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.surjo__btn--pay {
+  background: #ffc93c;
+  color: #0e141b;
+}
+
+.surjo__btn--pay:hover:not(:disabled) {
+  background: #e5a900;
+}
+
+.surjo__btn--ghost {
+  background: transparent;
+  color: #fff;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.18);
+}
+
+.surjo__btn--ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.surjo__hint {
+  margin: 16px 0 0;
+  color: #6e8091;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.surjo__error {
+  margin: 0 0 14px;
+  color: #ff8f7a;
+  font-size: 0.88rem;
+}

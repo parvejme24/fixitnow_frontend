@@ -5,7 +5,7 @@ import { absoluteMediaUrl, initialsFromName } from "@/lib/auth/types"
 import type { AccountStatus, AdminUser } from "@/app/lib/admin-data"
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object"
+  return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null
 }
@@ -46,6 +46,26 @@ function statusFromRaw(raw: unknown, user: AuthUser): AccountStatus {
   return statusFromUser(user)
 }
 
+function technicianVerifiedFrom(user: AuthUser, raw?: unknown): boolean {
+  if (typeof user.technicianProfile?.verified === "boolean") {
+    return user.technicianProfile.verified
+  }
+  const profile =
+    asRecord(asRecord(raw)?.technicianProfile) ??
+    asRecord(asRecord(raw)?.technician)
+  if (typeof profile?.verified === "boolean") return profile.verified
+  return false
+}
+
+function technicianIdFrom(user: AuthUser, raw?: unknown): string | null {
+  if (user.technicianProfile?.id) return user.technicianProfile.id
+  const profile =
+    asRecord(asRecord(raw)?.technicianProfile) ??
+    asRecord(asRecord(raw)?.technician)
+  const id = profile?.id
+  return typeof id === "string" && id ? id : null
+}
+
 export function toAdminUser(user: AuthUser, raw?: unknown): AdminUser {
   return {
     id: user.id,
@@ -57,8 +77,8 @@ export function toAdminUser(user: AuthUser, raw?: unknown): AdminUser {
     joined: formatJoined(user.createdAt),
     bookings: 0,
     status: statusFromRaw(raw, user),
-    technicianId: user.technicianProfile?.id ?? null,
-    technicianVerified: user.technicianProfile?.verified ?? false,
+    technicianId: technicianIdFrom(user, raw),
+    technicianVerified: technicianVerifiedFrom(user, raw),
   }
 }
 
@@ -66,6 +86,11 @@ export function adminRoleToApi(role: AdminUser["role"]): AuthRole {
   if (role === "Technician") return "TECHNICIAN"
   if (role === "Admin") return "ADMIN"
   return "CUSTOMER"
+}
+
+export type AdminUsersQuery = {
+  role?: AuthRole
+  verified?: boolean
 }
 
 function listUsersFromResponse(data: unknown): AdminUser[] {
@@ -79,13 +104,27 @@ function listUsersFromResponse(data: unknown): AdminUser[] {
   )
 }
 
-/** Admin: list every account (`/admin/users`, fallback `/auth/users`). */
-export async function fetchUsers(token: string) {
+function unwrapUserPayload(data: unknown): AdminUser {
+  const obj = asRecord(data)
+  const raw = obj?.user ?? obj?.item ?? data
+  return toAdminUser(normalizeUser(raw), raw)
+}
+
+/** Admin: list accounts from `GET /admin/users` (optional role / verified). */
+export async function fetchUsers(
+  token: string,
+  query: AdminUsersQuery = {}
+) {
+  const params = {
+    role: query.role,
+    verified:
+      typeof query.verified === "boolean" ? String(query.verified) : undefined,
+  }
   try {
-    const res = await apiGet<unknown>("/admin/users", undefined, token)
+    const res = await apiGet<unknown>("/admin/users", params, token)
     return listUsersFromResponse(res.data)
   } catch {
-    const res = await apiGet<unknown>("/auth/users", undefined, token)
+    const res = await apiGet<unknown>("/auth/users", params, token)
     return listUsersFromResponse(res.data)
   }
 }
@@ -101,12 +140,10 @@ export async function updateUserRole(
     { role },
     token
   )
-  const obj = asRecord(res.data)
-  const raw = obj?.user ?? res.data
-  return toAdminUser(normalizeUser(raw), raw)
+  return unwrapUserPayload(res.data)
 }
 
-/** Admin: suspend / restore / ban via PATCH /admin/users/:id */
+/** Admin: suspend / restore / ban via PATCH /admin/users/:userId */
 export async function updateUserStatus(
   id: string,
   status: AccountStatus,
@@ -117,7 +154,22 @@ export async function updateUserStatus(
     isActive: status === "Active",
   }
   const res = await apiPatch<unknown>(`/admin/users/${id}`, body, token)
-  const obj = asRecord(res.data)
-  const raw = obj?.user ?? res.data
-  return toAdminUser(normalizeUser(raw), raw)
+  return unwrapUserPayload(res.data)
+}
+
+/**
+ * Admin: set technicianProfile.verified via
+ * `PATCH /admin/users/:userId` `{ "verified": true | false }`.
+ */
+export async function updateUserVerified(
+  id: string,
+  verified: boolean,
+  token: string
+) {
+  const res = await apiPatch<unknown>(
+    `/admin/users/${id}`,
+    { verified },
+    token
+  )
+  return unwrapUserPayload(res.data)
 }

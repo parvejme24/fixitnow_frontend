@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState, type RefObject } from "react"
 import {
+  CheckCircle2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
   LoaderCircleIcon,
@@ -18,11 +19,10 @@ import {
   useAdminUsersQuery,
   useUpdateUserRole,
   useUpdateUserStatus,
+  useUpdateUserVerified,
 } from "@/lib/admin/use-admin-users"
-import {
-  getTechnicianErrorMessage,
-  useVerifyTechnician,
-} from "@/lib/technicians/hooks"
+import type { AuthRole } from "@/lib/auth/types"
+import { adminRoleToApi } from "@/lib/admin/users-api"
 import AdminShell from "./AdminShell"
 import { useReveal } from "./DashShell"
 import {
@@ -34,6 +34,7 @@ import {
 
 const PAGE_SIZE = 10
 const ROLE_OPTIONS: AdminUser["role"][] = ["Customer", "Technician", "Admin"]
+type VerifiedFilter = "all" | "true" | "false"
 
 function useDebounced<T>(value: T, ms: number) {
   const [v, setV] = useState(value)
@@ -53,6 +54,8 @@ function roleClass(role: AdminUser["role"]) {
 function UserAvatar({ user }: { user: AdminUser }) {
   const [broken, setBroken] = useState(false)
   const showImage = Boolean(user.image) && !broken
+  const isVerified =
+    user.role === "Technician" && Boolean(user.technicianVerified)
 
   return (
     <span className="user-avatar" aria-hidden>
@@ -67,6 +70,24 @@ function UserAvatar({ user }: { user: AdminUser }) {
       ) : (
         <span className="user-avatar__fallback">{user.initials}</span>
       )}
+      {isVerified ? <span className="user-avatar__verified" /> : null}
+    </span>
+  )
+}
+
+function VerifiedSignal() {
+  return (
+    <span className="user-verified-signal" title="Verified">
+      <CheckCircle2Icon size={14} aria-hidden />
+      Verified
+    </span>
+  )
+}
+
+function UnverifiedSignal() {
+  return (
+    <span className="user-verified-signal user-verified-signal--off" title="Unverified">
+      Unverified
     </span>
   )
 }
@@ -74,30 +95,39 @@ function UserAvatar({ user }: { user: AdminUser }) {
 export default function AdminUsers() {
   const { user: me } = useAuth()
   const { toasts, pushToast } = useDashToasts()
-  const usersQuery = useAdminUsersQuery()
-  const roleMutation = useUpdateUserRole()
-  const statusMutation = useUpdateUserStatus()
-  const verifyMutation = useVerifyTechnician()
-  const users = usersQuery.data ?? []
-
   const [q, setQ] = useState("")
   const debouncedQ = useDebounced(q, 200)
   const [roleFilter, setRoleFilter] = useState("Every role")
+  const [verifiedFilter, setVerifiedFilter] = useState<VerifiedFilter>("all")
   const [page, setPage] = useState(0)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [verifyPendingId, setVerifyPendingId] = useState<string | null>(null)
   const [statusPendingId, setStatusPendingId] = useState<string | null>(null)
-  const revealRef = useReveal([page, usersQuery.isFetching])
+
+  const apiQuery = useMemo(() => {
+    const role: AuthRole | undefined =
+      roleFilter === "Every role"
+        ? undefined
+        : adminRoleToApi(roleFilter as AdminUser["role"])
+    const verified =
+      verifiedFilter === "all" ? undefined : verifiedFilter === "true"
+    return { role, verified }
+  }, [roleFilter, verifiedFilter])
+
+  const usersQuery = useAdminUsersQuery(apiQuery)
+  const roleMutation = useUpdateUserRole()
+  const statusMutation = useUpdateUserStatus()
+  const verifyMutation = useUpdateUserVerified()
+  const users = usersQuery.data ?? []
+  const revealRef = useReveal([page, usersQuery.isFetching, apiQuery])
 
   const filtered = useMemo(() => {
     const query = debouncedQ.trim().toLowerCase()
-    return users.filter((u) => {
-      if (query && !`${u.name} ${u.email}`.toLowerCase().includes(query))
-        return false
-      if (roleFilter !== "Every role" && u.role !== roleFilter) return false
-      return true
-    })
-  }, [users, debouncedQ, roleFilter])
+    if (!query) return users
+    return users.filter((u) =>
+      `${u.name} ${u.email}`.toLowerCase().includes(query)
+    )
+  }, [users, debouncedQ])
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const showPagination = filtered.length > PAGE_SIZE
@@ -110,10 +140,17 @@ export default function AdminUsers() {
   const customers = users.filter((u) => u.role === "Customer").length
   const technicians = users.filter((u) => u.role === "Technician").length
   const admins = users.filter((u) => u.role === "Admin").length
+  const verifiedTechs = users.filter(
+    (u) => u.role === "Technician" && u.technicianVerified
+  ).length
+  const unverifiedTechs = users.filter(
+    (u) => u.role === "Technician" && !u.technicianVerified
+  ).length
 
   const resetFilters = () => {
     setQ("")
     setRoleFilter("Every role")
+    setVerifiedFilter("all")
     setPage(0)
   }
 
@@ -138,19 +175,29 @@ export default function AdminUsers() {
     }
   }
 
-  const verifyTech = async (user: AdminUser) => {
-    if (!user.technicianId || user.technicianVerified) return
-    setVerifyPendingId(user.id)
-    try {
-      await verifyMutation.mutateAsync(user.technicianId)
-      pushToast("Technician verified", `${user.name} is now verified.`)
-      void usersQuery.refetch()
-    } catch (error) {
+  const changeVerified = async (user: AdminUser, verified: boolean) => {
+    if (user.role !== "Technician") return
+    if (!user.technicianId) {
       pushToast(
-        "Could not verify",
-        getTechnicianErrorMessage(error),
+        "No technician profile",
+        "This account has no technician profile to verify.",
         "error"
       )
+      return
+    }
+    if (Boolean(user.technicianVerified) === verified || verifyMutation.isPending)
+      return
+    setVerifyPendingId(user.id)
+    try {
+      await verifyMutation.mutateAsync({ id: user.id, verified })
+      pushToast(
+        verified ? "Technician verified" : "Verification removed",
+        verified
+          ? `${user.name} is now verified and can appear publicly.`
+          : `${user.name} is unverified and hidden from the technicians list.`
+      )
+    } catch (error) {
+      pushToast("Could not update verification", getUserErrorMessage(error), "error")
     } finally {
       setVerifyPendingId(null)
     }
@@ -181,8 +228,8 @@ export default function AdminUsers() {
           <div>
             <h1 className="dash-title">All users</h1>
             <p className="dash-sub">
-              Promote customers or technicians to admin, or change roles between
-              accounts. You cannot change your own role.
+              Load every account, filter by role or verification, and toggle
+              technician verified status. You cannot change your own role.
             </p>
           </div>
           <div className="dash-head__actions">
@@ -222,8 +269,8 @@ export default function AdminUsers() {
           <StatCard
             icon={<UsersIcon size={18} />}
             value={users.length}
-            label="Total users"
-            delta="From /auth/users"
+            label="Loaded users"
+            delta="From /admin/users"
             delay={0}
             animate={!usersQuery.isLoading}
           />
@@ -240,7 +287,7 @@ export default function AdminUsers() {
             icon={<UsersIcon size={18} />}
             value={technicians}
             label="Technicians"
-            delta="Take jobs"
+            delta={`${verifiedTechs} verified · ${unverifiedTechs} pending`}
             variant="signal"
             delay={110}
             animate={!usersQuery.isLoading}
@@ -287,6 +334,18 @@ export default function AdminUsers() {
                 { value: "Admin", label: "Admin" },
               ]}
             />
+            <BrowseSelect
+              value={verifiedFilter}
+              onValueChange={(v) => {
+                setVerifiedFilter(v as VerifiedFilter)
+                setPage(0)
+              }}
+              options={[
+                { value: "all", label: "All verification" },
+                { value: "true", label: "Verified" },
+                { value: "false", label: "Unverified" },
+              ]}
+            />
           </div>
 
           <div className="table-wrap table-wrap--scroll">
@@ -320,12 +379,14 @@ export default function AdminUsers() {
                         <th>Status</th>
                         <th>Change status</th>
                         <th>Change role</th>
-                        <th>Verify</th>
+                        <th>Verification</th>
                       </tr>
                     </thead>
                     <tbody>
                       {pageRows.map((u) => {
                         const isSelf = Boolean(me?.id && u.id === me.id)
+                        const isTech = u.role === "Technician"
+                        const isVerified = isTech && Boolean(u.technicianVerified)
                         const busy =
                           pendingId === u.id && roleMutation.isPending
                         const verifying =
@@ -337,8 +398,17 @@ export default function AdminUsers() {
                                 <UserAvatar user={u} />
                                 <div className="cell-stack">
                                   <strong>
-                                    {u.name}
-                                    {isSelf ? " (you)" : ""}
+                                    <span>
+                                      {u.name}
+                                      {isSelf ? " (you)" : ""}
+                                    </span>
+                                    {isVerified ? (
+                                      <CheckCircle2Icon
+                                        size={14}
+                                        className="user-name-verified"
+                                        aria-label="Verified"
+                                      />
+                                    ) : null}
                                   </strong>
                                   <small className="mono-muted">{u.email}</small>
                                 </div>
@@ -349,15 +419,16 @@ export default function AdminUsers() {
                             </td>
                             <td className="mono-muted">{u.joined}</td>
                             <td>
-                              <StatusBadge status={u.status} />
-                              {u.role === "Technician" && u.technicianVerified ? (
-                                <span
-                                  className="badge-soft"
-                                  style={{ marginLeft: 6 }}
-                                >
-                                  Verified
-                                </span>
-                              ) : null}
+                              <div className="user-status-cell">
+                                <StatusBadge status={u.status} />
+                                {isTech ? (
+                                  isVerified ? (
+                                    <VerifiedSignal />
+                                  ) : (
+                                    <UnverifiedSignal />
+                                  )
+                                ) : null}
+                              </div>
                             </td>
                             <td>
                               <div className="user-role-select">
@@ -416,18 +487,31 @@ export default function AdminUsers() {
                               )}
                             </td>
                             <td>
-                              {u.role === "Technician" ? (
-                                u.technicianVerified ? (
-                                  <span className="mono-muted">Done</span>
-                                ) : u.technicianId ? (
-                                  <button
-                                    type="button"
-                                    className="dash-btn dash-btn--ghost dash-btn--sm"
-                                    disabled={verifying}
-                                    onClick={() => void verifyTech(u)}
-                                  >
-                                    {verifying ? "…" : "Verify"}
-                                  </button>
+                              {isTech ? (
+                                u.technicianId ? (
+                                  <div className="user-role-select">
+                                    <select
+                                      className="dash-input user-role-select__input"
+                                      value={isVerified ? "true" : "false"}
+                                      disabled={verifying}
+                                      aria-label={`Change verification for ${u.name}`}
+                                      onChange={(e) =>
+                                        void changeVerified(
+                                          u,
+                                          e.target.value === "true"
+                                        )
+                                      }
+                                    >
+                                      <option value="true">Verified</option>
+                                      <option value="false">Unverified</option>
+                                    </select>
+                                    {verifying ? (
+                                      <LoaderCircleIcon
+                                        size={14}
+                                        className="animate-spin user-role-select__spin"
+                                      />
+                                    ) : null}
+                                  </div>
                                 ) : (
                                   <span className="mono-muted">No profile</span>
                                 )

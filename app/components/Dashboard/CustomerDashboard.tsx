@@ -1,7 +1,6 @@
 "use client"
 
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { useMemo, useState, type RefObject } from "react"
 import {
   CalendarDaysIcon,
@@ -52,7 +51,6 @@ const TABS = ["Bookings", "Payments", "Reviews", "Track a job"]
 
 export default function CustomerDashboard() {
   const { user } = useAuth()
-  const router = useRouter()
   const name = user?.name || "Customer"
   const first = name.split(" ")[0] || "there"
   const { toasts, pushToast } = useDashToasts()
@@ -186,18 +184,10 @@ export default function CustomerDashboard() {
     if (payingId) return
     setPayingId(b.id)
     try {
-      const payment = await initiatePayment.mutateAsync({
-        bookingId: b.id,
-        method: "BKASH",
-      })
-      if (payment.redirectUrl) {
-        window.location.href = payment.redirectUrl
-      } else {
-        router.push(`/payment/success?id=${payment.id}`)
-      }
+      await initiatePayment.mutateAsync({ bookingId: b.id })
+      // Browser navigates to ShurjoPay checkoutUrl
     } catch (error) {
       pushToast("Payment failed", getPaymentErrorMessage(error), "error")
-    } finally {
       setPayingId(null)
     }
   }

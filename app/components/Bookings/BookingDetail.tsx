@@ -29,6 +29,8 @@ import {
   StatusBadge,
   useDashToasts,
 } from "@/app/components/Dashboard/DashShared"
+import "@/app/components/Dashboard/dashboard.css"
+import "@/app/components/Technicians/TechnicianDetail/TechnicianDetail.css"
 
 export default function BookingDetail({ bookingId }: { bookingId: string }) {
   const { user } = useAuth()
@@ -91,7 +93,7 @@ export default function BookingDetail({ bookingId }: { bookingId: string }) {
     role === "ADMIN"
       ? "/dashboard/admin/bookings"
       : role === "TECHNICIAN"
-        ? "/dashboard/technician"
+        ? "/dashboard/technician?tab=Bookings"
         : "/bookings"
 
   return (
@@ -211,22 +213,16 @@ export default function BookingDetail({ bookingId }: { bookingId: string }) {
                   void (async () => {
                     setBusy(true)
                     try {
-                      const payment = await payMutation.mutateAsync({
+                      await payMutation.mutateAsync({
                         bookingId: booking.id,
-                        method: "BKASH",
                       })
-                      if (payment.redirectUrl) {
-                        window.location.href = payment.redirectUrl
-                        return
-                      }
-                      router.push(`/payment/success?id=${payment.id}`)
+                      // Browser navigates to ShurjoPay checkoutUrl
                     } catch (error) {
                       pushToast(
                         "Payment failed",
                         getPaymentErrorMessage(error),
                         "error"
                       )
-                    } finally {
                       setBusy(false)
                     }
                   })()

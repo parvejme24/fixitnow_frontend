@@ -433,6 +433,25 @@
   box-shadow: 0 1px 2px rgba(14, 20, 27, 0.04);
 }
 
+.stat-card--clickable {
+  cursor: pointer;
+  transition:
+    transform 0.18s var(--ease),
+    box-shadow 0.18s var(--ease),
+    border-color 0.18s var(--ease);
+}
+
+.stat-card--clickable:hover {
+  transform: translateY(-2px);
+  border-color: rgba(18, 184, 134, 0.35);
+  box-shadow: 0 8px 20px rgba(14, 20, 27, 0.08);
+}
+
+.stat-card--clickable:focus-visible {
+  outline: 2px solid #12b886;
+  outline-offset: 2px;
+}
+
 .stat-card[data-reveal] {
   opacity: 0;
   transform: translateY(14px);
@@ -1689,10 +1708,11 @@
 }
 
 .user-avatar {
+  position: relative;
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -1706,6 +1726,7 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: 10px;
 }
 
 .user-avatar__fallback {
@@ -1713,6 +1734,55 @@
   font-size: 0.78rem;
   font-weight: 400;
   line-height: 1;
+}
+
+.user-avatar__verified {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #12b886;
+  border: 2px solid var(--white, #fff);
+  box-shadow: 0 0 0 3px rgba(18, 184, 134, 0.28);
+}
+
+.user-name-verified {
+  flex-shrink: 0;
+  color: #12b886;
+}
+
+.user-status-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-verified-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(18, 184, 134, 0.16);
+  color: #0a7a58;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.user-verified-signal svg {
+  flex-shrink: 0;
+  color: #12b886;
+}
+
+.user-verified-signal--off {
+  background: rgba(240, 152, 25, 0.16);
+  color: #9a6208;
 }
 
 .user-role {
@@ -1815,7 +1885,20 @@
   min-width: 0;
 }
 
-.users-table .cell-stack strong,
+.users-table .cell-stack strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  min-width: 0;
+}
+
+.users-table .cell-stack strong > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .users-table .cell-stack small {
   display: block;
   max-width: 220px;
@@ -1825,7 +1908,7 @@
 }
 
 .admin-filters--users {
-  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 200px) minmax(150px, 200px);
 }
 
 .table-foot {

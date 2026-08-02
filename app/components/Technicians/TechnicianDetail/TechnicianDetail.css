@@ -308,6 +308,30 @@
   color: var(--steel-500);
 }
 
+.td-badge--link {
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--fast, 0.18s) ease,
+    color var(--fast, 0.18s) ease;
+}
+
+.td-badge--link:hover {
+  background: rgba(18, 184, 134, 0.16);
+  color: #0b8a64;
+}
+
+.td-inline-link {
+  color: #0b8a64;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.td-inline-link:hover {
+  color: #07785a;
+}
+
 .td-meta {
   margin: 8px 0 0;
   font-family: var(--font-hivis-mono), monospace;

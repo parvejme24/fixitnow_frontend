@@ -36,7 +36,7 @@ function normalizeTechnicianProfile(
     trade: pickString(obj.trade) ?? null,
     visitFee: typeof obj.visitFee === "number" ? obj.visitFee : null,
     online: typeof obj.online === "boolean" ? obj.online : undefined,
-    verified: typeof obj.verified === "boolean" ? obj.verified : undefined,
+    verified: typeof obj.verified === "boolean" ? obj.verified : false,
   }
 }
 

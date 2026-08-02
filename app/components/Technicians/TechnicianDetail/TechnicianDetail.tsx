@@ -336,6 +336,13 @@ function TechnicianDetailView({
     [techProp, user]
   )
 
+  const isOwnProfile =
+    user?.role === "TECHNICIAN" &&
+    (Boolean(user.technicianProfile?.id && user.technicianProfile.id === tech.id) ||
+      Boolean(user.id && tech.userId && user.id === tech.userId))
+
+  const availabilityHref = "/dashboard/technician?tab=Availability"
+
   const catalogueServices = useMemo(
     () => servicesForTechnician(tech, allServices),
     [tech, allServices]
@@ -618,11 +625,23 @@ function TechnicianDetailView({
           <aside className="td-book">
             <div className="td-book__head">
               <h2>Book a slot</h2>
-              <span
-                className={`td-badge td-badge--${availability.live ? "live" : "completed"}`}
-              >
-                {slotsLoading ? "Checking…" : availability.label}
-              </span>
+              {slotsLoading ? (
+                <span className="td-badge td-badge--completed">Checking…</span>
+              ) : availability.label === "No open slots" && isOwnProfile ? (
+                <Link
+                  href={availabilityHref}
+                  className="td-badge td-badge--completed td-badge--link"
+                  title="Open availability on your dashboard"
+                >
+                  No open slots · Add slots
+                </Link>
+              ) : (
+                <span
+                  className={`td-badge td-badge--${availability.live ? "live" : "completed"}`}
+                >
+                  {availability.label}
+                </span>
+              )}
             </div>
 
             <div className="td-step">
@@ -680,7 +699,17 @@ function TechnicianDetailView({
                 </div>
               ) : days.length === 0 ? (
                 <p style={{ color: "#6E8091", fontSize: "0.9rem" }}>
-                  No open days yet. This technician has not published slots.
+                  {isOwnProfile ? (
+                    <>
+                      No open days yet.{" "}
+                      <Link href={availabilityHref} className="td-inline-link">
+                        Open your dashboard to add slots
+                      </Link>
+                      .
+                    </>
+                  ) : (
+                    "No open days yet. This technician has not published slots."
+                  )}
                 </p>
               ) : (
                 <div className="daystrip">

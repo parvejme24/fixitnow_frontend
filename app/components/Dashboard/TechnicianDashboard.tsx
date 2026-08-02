@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState, type RefObject } from "react"
 import {
   CalendarDaysIcon,
@@ -73,6 +74,14 @@ const TABS = [
 
 type TechTab = (typeof TABS)[number]
 
+function tabFromSearch(raw: string | null): TechTab {
+  if (!raw) return "Overview"
+  const match = TABS.find(
+    (tab) => tab.toLowerCase() === raw.trim().toLowerCase()
+  )
+  return match ?? "Overview"
+}
+
 function nextSevenDays() {
   const start = new Date()
   start.setHours(12, 0, 0, 0)
@@ -89,6 +98,7 @@ function nextSevenDays() {
 }
 
 export default function TechnicianDashboard() {
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const name = user?.name || "Technician"
   const first = name.split(" ")[0] || "there"
@@ -112,7 +122,13 @@ export default function TechnicianDashboard() {
 
   const reduceMotion = useReducedMotion() ?? false
   const { toasts, pushToast } = useDashToasts()
-  const [tab, setTab] = useState<TechTab>("Overview")
+  const [tab, setTab] = useState<TechTab>(() =>
+    tabFromSearch(searchParams.get("tab"))
+  )
+
+  useEffect(() => {
+    setTab(tabFromSearch(searchParams.get("tab")))
+  }, [searchParams])
   const [barsReady, setBarsReady] = useState(false)
   const [leavingIds, setLeavingIds] = useState<string[]>([])
   const [respondingId, setRespondingId] = useState<string | null>(null)
@@ -598,9 +614,16 @@ export default function TechnicianDashboard() {
             icon={<CalendarDaysIcon size={18} />}
             value={openSlotCount}
             label="Open slots"
-            delta={slotsQuery.isFetching ? "Refreshing…" : "Next 7 days"}
+            delta={
+              openSlotCount === 0
+                ? "Tap to open slots"
+                : slotsQuery.isFetching
+                  ? "Refreshing…"
+                  : "Next 7 days"
+            }
             variant="sky"
             delay={55}
+            onClick={() => setTab("Availability")}
           />
           <StatCard
             icon={<WalletIcon size={18} />}
@@ -652,7 +675,9 @@ export default function TechnicianDashboard() {
                       tab: "Availability" as TechTab,
                       label: "Availability",
                       hint: isVerified
-                        ? `${openSlotCount} open slots`
+                        ? openSlotCount
+                          ? `${openSlotCount} open slots`
+                          : "No open slots — tap to add"
                         : "Locked until verified",
                       icon: isVerified ? (
                         <CalendarDaysIcon size={18} />

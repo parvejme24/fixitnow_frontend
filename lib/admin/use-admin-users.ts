@@ -12,14 +12,18 @@ import {
   fetchUsers,
   updateUserRole,
   updateUserStatus,
+  updateUserVerified,
+  type AdminUsersQuery,
 } from "@/lib/admin/users-api"
 import { useAuth } from "@/app/providers/AuthProvider"
 import { ApiError } from "@/lib/api"
+import { catalogueKeys } from "@/lib/catalogue/query-keys"
 import type { AccountStatus, AdminUser } from "@/app/lib/admin-data"
 
 export const adminUserKeys = {
   all: ["admin", "users"] as const,
-  list: () => [...adminUserKeys.all, "list"] as const,
+  list: (query: AdminUsersQuery = {}) =>
+    [...adminUserKeys.all, "list", query] as const,
 }
 
 function requireToken(token: string | null | undefined): string {
@@ -27,11 +31,23 @@ function requireToken(token: string | null | undefined): string {
   return token
 }
 
-export function useAdminUsersQuery() {
+function patchUserInLists(
+  qc: ReturnType<typeof useQueryClient>,
+  id: string,
+  patch: Partial<AdminUser>
+) {
+  qc.setQueriesData<AdminUser[]>(
+    { queryKey: adminUserKeys.all },
+    (prev) =>
+      (prev ?? []).map((u) => (u.id === id ? { ...u, ...patch } : u))
+  )
+}
+
+export function useAdminUsersQuery(query: AdminUsersQuery = {}) {
   const { token } = useAuth()
   return useQuery({
-    queryKey: adminUserKeys.list(),
-    queryFn: () => fetchUsers(requireToken(token)),
+    queryKey: adminUserKeys.list(query),
+    queryFn: () => fetchUsers(requireToken(token), query),
     enabled: Boolean(token),
     staleTime: 20_000,
     placeholderData: keepPreviousData,
@@ -65,23 +81,18 @@ export function useUpdateUserRole() {
       return { id, role, updated }
     },
     onSuccess: ({ id, role, updated }) => {
-      qc.setQueryData<AdminUser[]>(adminUserKeys.list(), (prev) =>
-        (prev ?? []).map((u) =>
-          u.id === id
-            ? {
-                ...u,
-                role: updated.role || role,
-                name: updated.name || u.name,
-                email: updated.email || u.email,
-                initials: updated.initials || u.initials,
-                image: updated.image ?? u.image,
-                status: updated.status || u.status,
-                joined: updated.joined || u.joined,
-              }
-            : u
-        )
-      )
-      void qc.invalidateQueries({ queryKey: adminUserKeys.list() })
+      patchUserInLists(qc, id, {
+        role: updated.role || role,
+        name: updated.name || undefined,
+        email: updated.email || undefined,
+        initials: updated.initials || undefined,
+        image: updated.image,
+        status: updated.status,
+        joined: updated.joined || undefined,
+        technicianId: updated.technicianId,
+        technicianVerified: updated.technicianVerified,
+      })
+      void qc.invalidateQueries({ queryKey: adminUserKeys.all })
     },
   })
 }
@@ -101,14 +112,48 @@ export function useUpdateUserStatus() {
       return { id, status, updated }
     },
     onSuccess: ({ id, status, updated }) => {
-      qc.setQueryData<AdminUser[]>(adminUserKeys.list(), (prev) =>
-        (prev ?? []).map((u) =>
-          u.id === id
-            ? { ...u, status: updated.status || status }
-            : u
-        )
+      patchUserInLists(qc, id, {
+        status: updated.status || status,
+      })
+      void qc.invalidateQueries({ queryKey: adminUserKeys.all })
+    },
+  })
+}
+
+export function useUpdateUserVerified() {
+  const { token } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      verified,
+    }: {
+      id: string
+      verified: boolean
+    }) => {
+      const updated = await updateUserVerified(
+        id,
+        verified,
+        requireToken(token)
       )
-      void qc.invalidateQueries({ queryKey: adminUserKeys.list() })
+      return { id, verified, updated }
+    },
+    onSuccess: ({ id, verified, updated }) => {
+      patchUserInLists(qc, id, {
+        technicianVerified:
+          updated.technicianVerified ?? verified,
+        technicianId: updated.technicianId,
+      })
+      void qc.invalidateQueries({ queryKey: adminUserKeys.all })
+      void qc.invalidateQueries({
+        queryKey: [...catalogueKeys.all, "technicians"],
+      })
+      void qc.invalidateQueries({ queryKey: catalogueKeys.topTechnicians() })
+      if (updated.technicianId) {
+        void qc.invalidateQueries({
+          queryKey: catalogueKeys.technician(updated.technicianId),
+        })
+      }
     },
   })
 }
