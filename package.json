@@ -2,8 +2,8 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
-  "prisma": {
-    "schema": "prisma/schema"
+  "engines": {
+    "node": ">=20"
   },
   "scripts": {
     "dev": "next dev",
