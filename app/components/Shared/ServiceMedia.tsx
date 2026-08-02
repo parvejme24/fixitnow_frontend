@@ -36,6 +36,9 @@ export default function ServiceMedia({
           src={src!}
           alt=""
           className={cn("svc-media__img", imgClassName)}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
           onError={() => setBroken(true)}
         />
       ) : (

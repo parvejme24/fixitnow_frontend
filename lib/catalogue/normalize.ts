@@ -163,17 +163,28 @@ function skillsFromTechnician(obj: Loose): string[] {
     .filter(Boolean)
 }
 
-function areaFromTechnician(obj: Loose): { name: string; id: string | null } {
+function areaFromTechnician(obj: Loose): {
+  name: string
+  id: string | null
+  names: string[]
+} {
+  const names: string[] = []
   const single = asRecord(obj.area)
   if (single) {
-    return { name: str(single.name), id: str(single.id) || null }
+    const n = str(single.name)
+    if (n) names.push(n)
   }
-  const areas = asArray(obj.areas)
-  const first = asRecord(areas[0])
-  if (first) {
-    return { name: str(first.name), id: str(first.id) || null }
+  for (const item of asArray(obj.areas)) {
+    const row = asRecord(item)
+    const n = str(row?.name ?? (typeof item === "string" ? item : ""))
+    if (n && !names.includes(n)) names.push(n)
   }
-  return { name: "", id: null }
+  const first = asRecord(asArray(obj.areas)[0]) ?? single
+  return {
+    name: names[0] ?? "",
+    id: str(first?.id) || null,
+    names,
+  }
 }
 
 export function normalizeTechnician(raw: unknown): Technician {
@@ -194,6 +205,7 @@ export function normalizeTechnician(raw: unknown): Technician {
     cats: categoryIdsFromTechnician(obj),
     catNames: categoryNamesFromTechnician(obj),
     area: areaInfo.name,
+    areas: areaInfo.names,
     areaId: areaInfo.id,
     rating: num(obj.ratingAvg ?? obj.rating),
     reviews: num(obj.reviewCount ?? obj.reviews),

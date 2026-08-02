@@ -75,8 +75,18 @@ export async function fetchServices(query: ServicesQuery = {}) {
 }
 
 export async function fetchFeaturedServices() {
-  const res = await apiGet<unknown>("/services/featured")
-  return listPayload(res, normalizeService).items as Service[]
+  // Prefer main list — `/services/featured` is optional / may be slow.
+  const { items } = await fetchServices({ limit: 100 })
+  const featured = items.filter((s) => s.isFeatured && s.isActive !== false)
+  const pool = (featured.length ? featured : items.filter((s) => s.isActive !== false))
+  return [...pool]
+    .sort(
+      (a, b) =>
+        b.reviews - a.reviews ||
+        b.rating - a.rating ||
+        (b.isFeatured === a.isFeatured ? 0 : b.isFeatured ? 1 : -1)
+    )
+    .slice(0, 8)
 }
 
 export async function fetchService(id: string) {
@@ -109,11 +119,12 @@ export async function fetchTechnicians(query: TechniciansQuery = {}) {
   }
 }
 
+/** Home “best jobs” — from `GET /technicians`, sorted by jobsCompleted. */
 export async function fetchTopTechnicians() {
-  const res = await apiGet<unknown>("/technicians/top")
-  return listPayload(res, normalizeTechnician).items.filter(
-    (t) => t.verified
-  ) as Technician[]
+  const { items } = await fetchTechnicians({ limit: 100 })
+  return [...items]
+    .sort((a, b) => b.jobs - a.jobs || b.rating - a.rating)
+    .slice(0, 6)
 }
 
 export async function fetchTechnician(id: string) {

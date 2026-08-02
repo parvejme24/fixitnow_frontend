@@ -49,6 +49,8 @@ export type Technician = {
   /** Display names for `cats` from the API */
   catNames: string[]
   area: string
+  /** All coverage area names from API `areas[]` */
+  areas: string[]
   areaId?: string | null
   rating: number
   reviews: number

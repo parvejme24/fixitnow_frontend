@@ -45,6 +45,8 @@ type AuthContextValue = {
   user: AuthUser | null
   token: string | null
   isAuthenticated: boolean
+  /** True until localStorage token is read (avoids SSR hydration mismatch). */
+  isHydrated: boolean
   isLoading: boolean
   isFetchingUser: boolean
   login: (input: LoginInput, persist?: boolean) => Promise<AuthUser>
@@ -59,14 +61,33 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | null>(null)
 
+function isSessionDead(error: unknown) {
+  if (!(error instanceof ApiError)) return false
+  return (
+    error.status === 401 ||
+    error.status === 403 ||
+    error.status === 404 ||
+    error.code === "UNAUTHORIZED" ||
+    error.code === "FORBIDDEN" ||
+    error.code === "NOT_FOUND"
+  )
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
-  const [token, setToken] = useState<string | null>(() => getStoredToken())
+  // Always start null on server + client so first paint matches (no localStorage).
+  const [token, setToken] = useState<string | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+
+  useEffect(() => {
+    setToken(getStoredToken())
+    setHydrated(true)
+  }, [])
 
   const meQuery = useQuery({
     queryKey: authKeys.me(),
     queryFn: () => getMeRequest(token),
-    enabled: Boolean(token),
+    enabled: hydrated && Boolean(token),
     retry: false,
     staleTime: 60_000,
   })
@@ -87,12 +108,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [queryClient])
 
   useEffect(() => {
-    if (!token || !meQuery.isError) return
-    const err = meQuery.error
-    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+    if (!hydrated || !token || !meQuery.isError) return
+    if (isSessionDead(meQuery.error)) {
       clearSession()
     }
-  }, [token, meQuery.isError, meQuery.error, clearSession])
+  }, [hydrated, token, meQuery.isError, meQuery.error, clearSession])
 
   const loginMutation = useMutation({
     mutationFn: async ({
@@ -156,7 +176,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user: meQuery.data ?? null,
       token,
       isAuthenticated: Boolean(token && meQuery.data),
-      isLoading: Boolean(token) && (meQuery.isLoading || meQuery.isPending),
+      isHydrated: hydrated,
+      // Skeleton until storage is read, then while /auth/me loads.
+      isLoading:
+        !hydrated ||
+        (Boolean(token) &&
+          !meQuery.data &&
+          (meQuery.isLoading || meQuery.isPending || meQuery.isFetching)),
       isFetchingUser: meQuery.isFetching,
       login: (input, persist = true) =>
         loginMutation.mutateAsync({ input, persist }),
@@ -187,6 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       meQuery.isPending,
       meQuery.isFetching,
       token,
+      hydrated,
       loginMutation,
       registerMutation,
       logoutMutation,

@@ -123,13 +123,29 @@ export function initialsFromName(name: string) {
 
 export function absoluteMediaUrl(path?: string | null) {
   if (!path) return null
+  const trimmed = path.trim()
+  if (!trimmed) return null
   if (
-    /^https?:\/\//i.test(path) ||
-    path.startsWith("blob:") ||
-    path.startsWith("data:")
+    /^https?:\/\//i.test(trimmed) ||
+    trimmed.startsWith("blob:") ||
+    trimmed.startsWith("data:")
   ) {
-    return path
+    return trimmed
   }
-  const clean = path.startsWith("/") ? path : `/${path}`
+  const clean = trimmed.startsWith("/") ? trimmed : `/${trimmed}`
   return `${API_ORIGIN}${clean}`
+}
+
+/** Stable portrait when API has no profile photo. */
+export function avatarFallbackUrl(name: string, initials?: string | null) {
+  const label = (initials || name || "FN").trim() || "FN"
+  const params = new URLSearchParams({
+    name: label,
+    background: "1b2631",
+    color: "ffc93c",
+    bold: "true",
+    size: "128",
+    format: "png",
+  })
+  return `https://ui-avatars.com/api/?${params.toString()}`
 }

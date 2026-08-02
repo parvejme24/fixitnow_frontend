@@ -18,19 +18,33 @@ export const metadata: Metadata = {
   title: "Technicians — FixItNow",
 }
 
+async function safePrefetch(
+  queryClient: QueryClient,
+  options: {
+    queryKey: readonly unknown[]
+    queryFn: () => Promise<unknown>
+  }
+) {
+  try {
+    await queryClient.prefetchQuery(options)
+  } catch {
+    queryClient.removeQueries({ queryKey: options.queryKey })
+  }
+}
+
 export default async function TechniciansPage() {
   const queryClient = new QueryClient()
 
   await Promise.all([
-    queryClient.prefetchQuery({
+    safePrefetch(queryClient, {
       queryKey: catalogueKeys.categories(),
       queryFn: fetchCategories,
     }),
-    queryClient.prefetchQuery({
+    safePrefetch(queryClient, {
       queryKey: catalogueKeys.areas(),
       queryFn: fetchAreas,
     }),
-    queryClient.prefetchQuery({
+    safePrefetch(queryClient, {
       queryKey: catalogueKeys.technicians({ limit: 100 }),
       queryFn: () => fetchTechnicians({ limit: 100 }),
     }),

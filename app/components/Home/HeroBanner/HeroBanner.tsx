@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { useReducedMotion } from "framer-motion"
 
 import { cn } from "@/lib/utils"
+import TradeMarquee from "@/app/components/Home/TradeMarquee/TradeMarquee"
 import "./HeroBanner.css"
 
 type Status = "matching" | "enroute" | "onsite" | "done"
@@ -256,6 +257,7 @@ export default function HeroBanner() {
         style={reduceMotion ? { animation: "none" } : undefined}
       />
 
+      <div className="hero__body">
       <div className="relative z-[1] mx-auto grid w-full max-w-[1240px] grid-cols-1 items-center gap-11 px-6 min-[1081px]:grid-cols-[1.05fr_.95fr] min-[1081px]:gap-[52px]">
         {/* Left column */}
         <div>
@@ -334,6 +336,7 @@ export default function HeroBanner() {
         <div
           ref={boardRef}
           className={cn(
+            "hero__board",
             "transition-[opacity,transform] duration-[720ms] ease-[cubic-bezier(.16,1,.3,1)]",
             showBoard
               ? "translate-x-0 opacity-100"
@@ -417,6 +420,11 @@ export default function HeroBanner() {
             Board refreshes every few seconds
           </p>
         </div>
+      </div>
+      </div>
+
+      <div className="hero__marquee">
+        <TradeMarquee />
       </div>
     </section>
   )

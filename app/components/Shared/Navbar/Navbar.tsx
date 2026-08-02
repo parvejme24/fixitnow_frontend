@@ -322,13 +322,11 @@ export default function Navbar() {
   const navLinks = primaryNavLinks(user?.role)
   const [open, setOpen] = useState(false)
   const [elevated, setElevated] = useState(false)
-  const [lastPathname, setLastPathname] = useState(pathname)
   const menuId = useId()
 
-  if (pathname !== lastPathname) {
-    setLastPathname(pathname)
+  useEffect(() => {
     setOpen(false)
-  }
+  }, [pathname])
 
   useEffect(() => {
     const onScroll = () => setElevated(window.scrollY > 4)

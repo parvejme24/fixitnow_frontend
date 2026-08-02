@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef } from "react"
 import { useReducedMotion } from "framer-motion"
 import { CheckCircle2Icon } from "lucide-react"
 
-import { useTopTechnicians } from "@/lib/catalogue/hooks"
+import { useTechnicians } from "@/lib/catalogue/hooks"
 import { techniciansWithAuthImage } from "@/lib/catalogue/with-auth-image"
 import ProfileFace from "@/app/components/Shared/ProfileFace"
 import { useAuth } from "@/app/providers/AuthProvider"
@@ -29,17 +29,23 @@ export default function TopTechnicians() {
   const reduceMotion = useReducedMotion() ?? false
   const gridRef = useRef<HTMLDivElement>(null)
   const { user } = useAuth()
-  const { data: rawTechs = [], isLoading, isError } = useTopTechnicians()
-  const techs = useMemo(
-    () => techniciansWithAuthImage(rawTechs, user),
-    [rawTechs, user]
-  )
-  const showSkeleton = isLoading && techs.length === 0
+  const techniciansQuery = useTechnicians({ limit: 100 })
+  const techs = useMemo(() => {
+    const items = techniciansQuery.data?.items ?? []
+    const ranked = [...items]
+      .filter((t) => t.verified)
+      .sort((a, b) => b.jobs - a.jobs || b.rating - a.rating)
+      .slice(0, 3)
+    return techniciansWithAuthImage(ranked, user)
+  }, [techniciansQuery.data?.items, user])
+
+  const showSkeleton = techniciansQuery.isLoading && techs.length === 0
+  const showError =
+    !showSkeleton && techs.length === 0 && techniciansQuery.isError
 
   useEffect(() => {
-    if (showSkeleton) return
     const root = gridRef.current
-    if (!root) return
+    if (!root || showSkeleton) return
     const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"))
 
     if (reduceMotion) {
@@ -61,12 +67,19 @@ export default function TopTechnicians() {
 
     cards.forEach((el) => {
       const rect = el.getBoundingClientRect()
-      const inView =
-        rect.top < window.innerHeight * 0.92 && rect.bottom > 0
-      if (inView) el.classList.add("is-in")
-      else io.observe(el)
+      if (rect.top < window.innerHeight * 0.92 && rect.bottom > 0) {
+        el.classList.add("is-in")
+      } else {
+        io.observe(el)
+      }
     })
-    return () => io.disconnect()
+    const t = window.setTimeout(() => {
+      cards.forEach((el) => el.classList.add("is-in"))
+    }, 900)
+    return () => {
+      io.disconnect()
+      window.clearTimeout(t)
+    }
   }, [showSkeleton, reduceMotion, techs.length])
 
   return (
@@ -77,7 +90,7 @@ export default function TopTechnicians() {
       <div className="tt-wrap">
         <div className="section-head">
           <div>
-            <p className="tt-eyebrow on-dark">Highest rated this quarter</p>
+            <p className="tt-eyebrow on-dark">Best jobs completed</p>
             <h2 id="tt-heading" className="display-lg">
               The people who show up
             </h2>
@@ -90,13 +103,13 @@ export default function TopTechnicians() {
         <div ref={gridRef} className="grid grid-3" aria-busy={showSkeleton}>
           {showSkeleton
             ? Array.from({ length: 3 }, (_, i) => <SkeletonCard key={i} />)
-            : isError && techs.length === 0
+            : showError
               ? (
                 <p style={{ gridColumn: "1 / -1", color: "var(--steel-300)" }}>
                   Could not load technicians right now.
                 </p>
               )
-            : techs.slice(0, 3).map((tech, index) => {
+            : techs.map((tech, index) => {
                 const tags =
                   (tech.catNames?.length ? tech.catNames : tech.skills).slice(
                     0,
@@ -106,17 +119,18 @@ export default function TopTechnicians() {
                 <Link
                   key={tech.id}
                   href={`/technician?id=${tech.id}`}
-                  className="tech-card tech-card--hover"
+                  className="tech-card tech-card--hover is-in"
                   data-reveal
                   style={{ transitionDelay: `${index * 55}ms` }}
                 >
                   <div className="tech-card__head">
                     <div className="tech-card__avatar">
-                      <ProfileFace
-                        image={tech.image}
-                        initials={tech.initials}
-                        className="tech-card__face"
-                      />
+          <ProfileFace
+            image={tech.image}
+            initials={tech.initials}
+            name={tech.name}
+            className="tech-card__face"
+          />
                       {tech.online && <span className="tech-card__online" />}
                     </div>
                     <div>

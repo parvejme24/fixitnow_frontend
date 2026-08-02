@@ -1,13 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useEffect, useRef } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useReducedMotion } from "framer-motion"
 
 import { formatTaka } from "@/app/lib/catalogue"
 import ServiceMedia from "@/app/components/Shared/ServiceMedia"
 import { formatServiceTag } from "@/lib/catalogue/normalize"
-import { useFeaturedServices } from "@/lib/catalogue/hooks"
+import { useServices } from "@/lib/catalogue/hooks"
 
 import "./FeaturedServices.css"
 
@@ -40,13 +40,24 @@ function SkeletonCard() {
 export default function FeaturedServices() {
   const reduceMotion = useReducedMotion() ?? false
   const gridRef = useRef<HTMLDivElement>(null)
-  const { data: featured = [], isLoading } = useFeaturedServices()
-  const showSkeleton = isLoading && !reduceMotion
+  const servicesQuery = useServices({ limit: 100 })
+  const featured = useMemo(() => {
+    const items = servicesQuery.data?.items ?? []
+    const active = items.filter((s) => s.isActive !== false)
+    const preferred = active.filter((s) => s.isFeatured)
+    const pool = preferred.length ? preferred : active
+    return [...pool]
+      .sort((a, b) => b.reviews - a.reviews || b.rating - a.rating)
+      .slice(0, 4)
+  }, [servicesQuery.data?.items])
+
+  const showSkeleton = servicesQuery.isLoading && featured.length === 0
+  const showError =
+    !showSkeleton && featured.length === 0 && servicesQuery.isError
 
   useEffect(() => {
-    if (showSkeleton) return
     const root = gridRef.current
-    if (!root) return
+    if (!root || showSkeleton) return
     const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"))
 
     if (reduceMotion) {
@@ -54,6 +65,7 @@ export default function FeaturedServices() {
       return
     }
 
+    // Reveal immediately if already in viewport; observe the rest.
     const io = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -63,11 +75,25 @@ export default function FeaturedServices() {
           }
         }
       },
-      { threshold: 0.12 }
+      { threshold: 0.08, rootMargin: "0px 0px -4% 0px" }
     )
 
-    cards.forEach((el) => io.observe(el))
-    return () => io.disconnect()
+    cards.forEach((el) => {
+      const rect = el.getBoundingClientRect()
+      if (rect.top < window.innerHeight && rect.bottom > 0) {
+        el.classList.add("is-in")
+      } else {
+        io.observe(el)
+      }
+    })
+    // Safety: never leave cards invisible
+    const t = window.setTimeout(() => {
+      cards.forEach((el) => el.classList.add("is-in"))
+    }, 900)
+    return () => {
+      io.disconnect()
+      window.clearTimeout(t)
+    }
   }, [showSkeleton, reduceMotion, featured.length])
 
   return (
@@ -95,11 +121,17 @@ export default function FeaturedServices() {
         >
           {showSkeleton
             ? Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} />)
+            : showError
+              ? (
+                <p style={{ gridColumn: "1 / -1", color: "var(--steel-400)" }}>
+                  Could not load services right now.
+                </p>
+              )
             : featured.map((svc, index) => (
                 <Link
                   key={svc.id}
                   href={`/services/${svc.id}`}
-                  className="svc-card"
+                  className="svc-card is-in"
                   data-reveal
                   style={{ transitionDelay: `${index * 55}ms` }}
                 >

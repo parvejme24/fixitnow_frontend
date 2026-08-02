@@ -948,6 +948,7 @@ function IdentityCard({
           <ProfileFace
             image={tech.image}
             initials={tech.initials}
+            name={tech.name}
             className="td-avatar__face"
           />
           {tech.online && <span className="td-avatar__dot" />}

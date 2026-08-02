@@ -54,6 +54,7 @@ export function useServices(query: ServicesQuery = {}) {
     queryFn: () => fetchServices(query),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
+    refetchOnMount: "always",
   })
 }
 
@@ -62,6 +63,7 @@ export function useFeaturedServices() {
     queryKey: catalogueKeys.featuredServices(),
     queryFn: fetchFeaturedServices,
     staleTime: 60_000,
+    refetchOnMount: "always",
   })
 }
 
@@ -81,6 +83,7 @@ export function useTechnicians(query: TechniciansQuery = {}) {
     queryFn: () => fetchTechnicians(query),
     staleTime: 30_000,
     placeholderData: keepPreviousData,
+    refetchOnMount: "always",
   })
 }
 
@@ -89,6 +92,7 @@ export function useTopTechnicians() {
     queryKey: catalogueKeys.topTechnicians(),
     queryFn: fetchTopTechnicians,
     staleTime: 60_000,
+    refetchOnMount: "always",
   })
 }
 

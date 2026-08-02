@@ -57,10 +57,14 @@ function filterTechnicians(
   const query = q.trim().toLowerCase()
   let filtered = list.filter((t) => {
     if (!t.verified) return false
-    const hay = `${t.name} ${t.trade} ${t.skills.join(" ")} ${t.area}`.toLowerCase()
+    const hay = `${t.name} ${t.trade} ${t.skills.join(" ")} ${(t.areas?.length ? t.areas : [t.area]).join(" ")}`.toLowerCase()
     if (query && !hay.includes(query)) return false
     if (cats.length && !t.cats.some((c) => cats.includes(c))) return false
-    if (area && t.area !== area) return false
+    if (
+      area &&
+      !(t.areas?.length ? t.areas.includes(area) : t.area === area)
+    )
+      return false
     if (t.rating < minRating) return false
     if (t.rate > budget) return false
     if (today && !t.online) return false
@@ -91,6 +95,7 @@ function TechCard({ tech, index }: { tech: Technician; index: number }) {
           <ProfileFace
             image={tech.image}
             initials={tech.initials}
+            name={tech.name}
             className="tech-card__face"
           />
           {tech.online && <span className="tech-card__online" />}
