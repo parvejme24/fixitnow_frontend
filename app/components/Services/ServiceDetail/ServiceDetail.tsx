@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   CheckCircle2Icon,
   Clock3Icon,
@@ -27,6 +27,7 @@ import {
   useDeleteReview,
   useServiceReviewsQuery,
 } from "@/lib/reviews/hooks"
+import { cn } from "@/lib/utils"
 
 import "./ServiceDetail.css"
 
@@ -108,6 +109,27 @@ function ServiceDetailView({
     () => techniciansForService(service, technicians),
     [service, technicians]
   )
+  const [selectedTechId, setSelectedTechId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!techs.length) {
+      setSelectedTechId(null)
+      return
+    }
+    setSelectedTechId((prev) =>
+      prev && techs.some((t) => t.id === prev) ? prev : techs[0].id
+    )
+  }, [techs])
+
+  const selectedTech = useMemo(
+    () => techs.find((t) => t.id === selectedTechId) ?? null,
+    [techs, selectedTechId]
+  )
+
+  const bookHref = selectedTech
+    ? `/technician?id=${encodeURIComponent(selectedTech.id)}&service=${encodeURIComponent(service.id)}`
+    : "/technicians"
+
   const [extraReviews, setExtraReviews] = useState<Review[]>([])
   const reviews = useMemo(
     () => [...extraReviews, ...(reviewsQuery.data ?? [])],
@@ -183,42 +205,39 @@ function ServiceDetailView({
             {" / "}
             <strong>{service.title}</strong>
           </p>
-          {service.tag && (
-            <span className="sd-hero__tag">{formatServiceTag(service.tag)}</span>
-          )}
-          <div className="sd-hero__visual">
-            <ServiceMedia
-              image={service.image}
-              title={service.title}
-              className="sd-hero__photo"
-              glyphSize={56}
-            />
-          </div>
-          <p
-            style={{
-              margin: "0 0 8px",
-              fontFamily: "var(--font-hivis-mono), monospace",
-              fontSize: "0.72rem",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "#9AABB8",
-            }}
-          >
-            {service.catName}
-          </p>
-          <h1>{service.title}</h1>
-          <p className="sd-hero__lede">{service.desc}</p>
-          <div className="sd-hero__meta">
-            <span>
-              <b>{stars(avgRating)}</b> {avgRating.toFixed(1)} · {reviews.length}{" "}
-              reviews
-            </span>
-            <span>
-              Duration <b>{service.dur}</b>
-            </span>
-            <span>
-              From <b>{formatTaka(service.price)}</b>
-            </span>
+
+          <div className="sd-hero__grid">
+            <div className="sd-hero__copy">
+              {service.tag && (
+                <span className="sd-hero__tag">
+                  {formatServiceTag(service.tag)}
+                </span>
+              )}
+              <p className="sd-hero__cat">{service.catName}</p>
+              <h1>{service.title}</h1>
+              <p className="sd-hero__lede">{service.desc}</p>
+              <div className="sd-hero__meta">
+                <span>
+                  <b>{stars(avgRating)}</b> {avgRating.toFixed(1)} ·{" "}
+                  {reviews.length} reviews
+                </span>
+                <span>
+                  Duration <b>{service.dur}</b>
+                </span>
+                <span>
+                  From <b>{formatTaka(service.price)}</b>
+                </span>
+              </div>
+            </div>
+
+            <div className="sd-hero__visual">
+              <ServiceMedia
+                image={service.image}
+                title={service.title}
+                className="sd-hero__photo"
+                glyphSize={56}
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -269,26 +288,46 @@ function ServiceDetailView({
 
             <article className="sd-card">
               <h2>Technicians for this job</h2>
-              <div className="sd-tech-grid">
-                {techs.map((tech) => (
-                  <Link
-                    key={tech.id}
-                    href={`/technician?id=${tech.id}&service=${service.id}`}
-                    className="sd-tech"
-                  >
-                    <div className="sd-tech__av">
-                      {tech.initials}
-                      {tech.online && <i />}
-                    </div>
-                    <div>
-                      <p className="sd-tech__name">{tech.name}</p>
-                      <p className="sd-tech__meta">
-                        {tech.area} · {tech.rating.toFixed(1)} ★ ·{" "}
-                        {formatTaka(tech.rate)}/visit
-                      </p>
-                    </div>
-                  </Link>
-                ))}
+              <p className="sd-tech-hint">
+                {techs.length
+                  ? "First technician is selected by default — tap another to change."
+                  : "No matched technicians yet for this service."}
+              </p>
+              <div className="sd-tech-grid" role="listbox" aria-label="Select technician">
+                {techs.map((tech) => {
+                  const selected = tech.id === selectedTechId
+                  return (
+                    <button
+                      key={tech.id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      className={cn("sd-tech", selected && "is-selected")}
+                      onClick={() => setSelectedTechId(tech.id)}
+                    >
+                      <div className="sd-tech__av">
+                        {tech.initials}
+                        {tech.online && <i />}
+                      </div>
+                      <div className="sd-tech__body">
+                        <p className="sd-tech__name">
+                          {tech.name}
+                          {selected ? (
+                            <CheckCircle2Icon
+                              size={14}
+                              className="sd-tech__check"
+                              aria-hidden
+                            />
+                          ) : null}
+                        </p>
+                        <p className="sd-tech__meta">
+                          {tech.area} · {tech.rating.toFixed(1)} ★ ·{" "}
+                          {formatTaka(tech.rate)}/visit
+                        </p>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
             </article>
 
@@ -363,17 +402,26 @@ function ServiceDetailView({
                 </b>
               </div>
               <div className="sd-panel__row">
-                <span>Techs available</span>
-                <b>{techs.length}</b>
+                <span>Technician</span>
+                <b>{selectedTech?.name ?? "Select one"}</b>
               </div>
+              {selectedTech ? (
+                <div className="sd-panel__row">
+                  <span>Visit fee</span>
+                  <b>{formatTaka(selectedTech.rate)}</b>
+                </div>
+              ) : null}
             </div>
 
-            <Link
-              href={`/technician?service=${service.id}`}
-              className="sd-panel__cta"
-            >
-              Book this service
-            </Link>
+            {selectedTech ? (
+              <Link href={bookHref} className="sd-panel__cta">
+                Book with {selectedTech.name.split(" ")[0]}
+              </Link>
+            ) : (
+              <span className="sd-panel__cta is-disabled" aria-disabled>
+                Select a technician to book
+              </span>
+            )}
             <Link href="/technicians" className="sd-panel__ghost">
               Browse all technicians
             </Link>

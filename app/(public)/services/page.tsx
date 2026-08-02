@@ -7,7 +7,12 @@ import {
 import { Suspense } from "react"
 
 import BrowseServices from "../../components/Services/BrowseServices/BrowseServices"
-import { fetchCategories, fetchServices } from "@/lib/catalogue/api"
+import {
+  fetchAreas,
+  fetchCategories,
+  fetchServices,
+  fetchTechnicians,
+} from "@/lib/catalogue/api"
 import { catalogueKeys } from "@/lib/catalogue/query-keys"
 
 export const metadata: Metadata = {
@@ -37,8 +42,16 @@ export default async function ServicesPage() {
       queryFn: fetchCategories,
     }),
     safePrefetch(queryClient, {
+      queryKey: catalogueKeys.areas(),
+      queryFn: fetchAreas,
+    }),
+    safePrefetch(queryClient, {
       queryKey: catalogueKeys.services({ limit: 100 }),
       queryFn: () => fetchServices({ limit: 100 }),
+    }),
+    safePrefetch(queryClient, {
+      queryKey: catalogueKeys.technicians({ limit: 100 }),
+      queryFn: () => fetchTechnicians({ limit: 100 }),
     }),
   ])
 

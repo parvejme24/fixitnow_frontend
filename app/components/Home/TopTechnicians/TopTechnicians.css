@@ -105,9 +105,9 @@
   box-shadow: inset 0 0 0 2px var(--hivis);
 }
 
-.tt-section .grid.grid-3 {
+.tt-section .grid.grid-4 {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 22px;
 }
 
@@ -307,8 +307,8 @@
   color: var(--steel-400);
 }
 
-@media (max-width: 900px) {
-  .tt-section .grid.grid-3 {
+@media (max-width: 1100px) {
+  .tt-section .grid.grid-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -318,7 +318,7 @@
     --gutter: 18px;
   }
 
-  .tt-section .grid.grid-3 {
+  .tt-section .grid.grid-4 {
     grid-template-columns: 1fr;
   }
 

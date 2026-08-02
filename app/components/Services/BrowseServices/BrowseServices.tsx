@@ -19,7 +19,12 @@ import {
 import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
 import ServiceMedia from "@/app/components/Shared/ServiceMedia"
 import { formatServiceTag } from "@/lib/catalogue/normalize"
-import { useCategories, useServices } from "@/lib/catalogue/hooks"
+import {
+  useAreas,
+  useCategories,
+  useServices,
+  useTechnicians,
+} from "@/lib/catalogue/hooks"
 import "./BrowseServices.css"
 
 type View = "grid" | "list"
@@ -162,13 +167,19 @@ export default function BrowseServices() {
   const searchParams = useSearchParams()
   const reduceMotion = useReducedMotion() ?? false
   const categoriesQuery = useCategories()
+  const areasQuery = useAreas()
+  const techniciansQuery = useTechnicians({ limit: 100 })
   const categories = categoriesQuery.data ?? []
+  const areas = areasQuery.data ?? []
+  const technicians = techniciansQuery.data?.items ?? []
 
   const initialCat = searchParams.get("cat")
+  const initialArea = searchParams.get("area") ?? ""
 
   const [q, setQ] = useState("")
   const debouncedQ = useDebounced(q, 220)
   const [cats, setCats] = useState<CategoryId[]>(initialCat ? [initialCat] : [])
+  const [area, setArea] = useState(initialArea)
   const [minRating, setMinRating] = useState(0)
   const [budget, setBudget] = useState(4500)
   const [view, setView] = useState<View>("grid")
@@ -213,6 +224,13 @@ export default function BrowseServices() {
     }
   }, [initialCat, categories])
 
+  useEffect(() => {
+    if (!initialArea || !areas.length) return
+    if (areas.some((a) => a.name === initialArea)) {
+      setArea(initialArea)
+    }
+  }, [initialArea, areas])
+
   // Drop filters for categories that were hidden (live update, no reload)
   useEffect(() => {
     if (!categoriesQuery.isFetched) return
@@ -223,19 +241,44 @@ export default function BrowseServices() {
     })
   }, [categories, categoriesQuery.isFetched])
 
-  const services = useMemo(
-    () =>
-      filterServices(
-        fetchedServices,
-        // Search already applied by API when present; keep local for multi-field safety
-        cats.length === 1 ? "" : debouncedQ,
-        cats.length === 1 ? [] : cats,
-        minRating,
-        budget,
-        sort
-      ),
-    [fetchedServices, debouncedQ, cats, minRating, budget, sort]
-  )
+  /** Category IDs covered by verified technicians in the selected area. */
+  const areaCategoryIds = useMemo(() => {
+    if (!area) return null
+    const ids = new Set<string>()
+    for (const tech of technicians) {
+      if (!tech.verified) continue
+      const covers = tech.areas?.length
+        ? tech.areas.includes(area)
+        : tech.area === area
+      if (!covers) continue
+      for (const catId of tech.cats) ids.add(catId)
+    }
+    return ids
+  }, [area, technicians])
+
+  const services = useMemo(() => {
+    let list = filterServices(
+      fetchedServices,
+      // Search already applied by API when present; keep local for multi-field safety
+      cats.length === 1 ? "" : debouncedQ,
+      cats.length === 1 ? [] : cats,
+      minRating,
+      budget,
+      sort
+    )
+    if (areaCategoryIds) {
+      list = list.filter((s) => areaCategoryIds.has(s.cat))
+    }
+    return list
+  }, [
+    fetchedServices,
+    debouncedQ,
+    cats,
+    minRating,
+    budget,
+    sort,
+    areaCategoryIds,
+  ])
 
   const toggleCat = (id: CategoryId) => {
     setCats((prev) =>
@@ -246,6 +289,7 @@ export default function BrowseServices() {
   const clearAll = () => {
     setQ("")
     setCats([])
+    setArea("")
     setMinRating(0)
     setBudget(4500)
     setToast({
@@ -257,6 +301,8 @@ export default function BrowseServices() {
   const retry = () => {
     void categoriesQuery.refetch()
     void servicesQuery.refetch()
+    void areasQuery.refetch()
+    void techniciansQuery.refetch()
   }
 
   const activeChips: { key: string; label: string; onRemove: () => void }[] = []
@@ -265,6 +311,13 @@ export default function BrowseServices() {
       key: `cat-${id}`,
       label: categoryName(id, categories),
       onRemove: () => setCats((prev) => prev.filter((c) => c !== id)),
+    })
+  }
+  if (area) {
+    activeChips.push({
+      key: "area",
+      label: area,
+      onRemove: () => setArea(""),
     })
   }
   if (minRating > 0) {
@@ -295,7 +348,9 @@ export default function BrowseServices() {
             <strong>Browse services</strong>
           </p>
           <h1>Find the right hands</h1>
-          <p>Filter by trade, rating and budget. Results update as you go.</p>
+          <p>
+            Filter by trade, area, rating and budget. Results update as you go.
+          </p>
           <div className="browse-search">
             <SearchIcon />
             <input
@@ -346,6 +401,21 @@ export default function BrowseServices() {
                 <em>{cat.serviceCount}</em>
               </label>
             ))}
+          </div>
+
+          <div className="browse-block">
+            <h3>Area in Dhaka</h3>
+            <BrowseSelect
+              aria-label="Filter by area"
+              value={area || "__all__"}
+              onValueChange={(value) =>
+                setArea(value === "__all__" ? "" : value)
+              }
+              options={[
+                { value: "__all__", label: "Anywhere in Dhaka" },
+                ...areas.map((a) => ({ value: a.name, label: a.name })),
+              ]}
+            />
           </div>
 
           <div className="browse-block">

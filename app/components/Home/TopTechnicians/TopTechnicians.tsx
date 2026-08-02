@@ -35,7 +35,7 @@ export default function TopTechnicians() {
     const ranked = [...items]
       .filter((t) => t.verified)
       .sort((a, b) => b.jobs - a.jobs || b.rating - a.rating)
-      .slice(0, 3)
+      .slice(0, 4)
     return techniciansWithAuthImage(ranked, user)
   }, [techniciansQuery.data?.items, user])
 
@@ -100,9 +100,9 @@ export default function TopTechnicians() {
           </Link>
         </div>
 
-        <div ref={gridRef} className="grid grid-3" aria-busy={showSkeleton}>
+        <div ref={gridRef} className="grid grid-4" aria-busy={showSkeleton}>
           {showSkeleton
-            ? Array.from({ length: 3 }, (_, i) => <SkeletonCard key={i} />)
+            ? Array.from({ length: 4 }, (_, i) => <SkeletonCard key={i} />)
             : showError
               ? (
                 <p style={{ gridColumn: "1 / -1", color: "var(--steel-300)" }}>

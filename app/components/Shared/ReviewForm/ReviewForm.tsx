@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, type FormEvent } from "react"
+import Link from "next/link"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
 import { StarIcon } from "lucide-react"
 
 import {
@@ -8,6 +9,7 @@ import {
   initialsFromName,
   type Review,
 } from "@/app/lib/catalogue"
+import { useAuth } from "@/app/providers/AuthProvider"
 
 import "./ReviewForm.css"
 
@@ -16,10 +18,13 @@ type ReviewFormProps = {
   onSubmit: (review: Review) => void
 }
 
+const MIN_BODY = 12
+
 export default function ReviewForm({
   subjectLabel = "this service",
   onSubmit,
 }: ReviewFormProps) {
+  const { user, isAuthenticated, isHydrated, isLoading } = useAuth()
   const [rating, setRating] = useState(0)
   const [hover, setHover] = useState(0)
   const [name, setName] = useState("")
@@ -28,28 +33,49 @@ export default function ReviewForm({
   const [sent, setSent] = useState(false)
 
   const active = hover || rating
+  const loggedIn = isHydrated && !isLoading && isAuthenticated && Boolean(user)
+
+  useEffect(() => {
+    if (user?.name) setName(user.name)
+  }, [user?.name])
+
+  const canSubmit = useMemo(() => {
+    return (
+      loggedIn &&
+      rating >= 1 &&
+      name.trim().length > 0 &&
+      body.trim().length >= MIN_BODY
+    )
+  }, [loggedIn, rating, name, body])
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
+    if (!loggedIn) {
+      setError("Log in to post a review.")
+      return
+    }
     if (rating < 1) {
       setError("Pick a star rating first.")
       return
     }
-    if (body.trim().length < 12) {
-      setError("Write at least a short note (12+ characters).")
+    if (!name.trim()) {
+      setError("Enter your name.")
       return
     }
-    const author = name.trim() || "Anonymous"
+    if (body.trim().length < MIN_BODY) {
+      setError(`Write at least a short note (${MIN_BODY}+ characters).`)
+      return
+    }
+    const author = name.trim()
     onSubmit({
       author,
-      initials: initialsFromName(author === "Anonymous" ? "AN" : author),
+      initials: initialsFromName(author),
       rating,
       date: formatReviewDate(),
       body: body.trim(),
     })
     setRating(0)
     setHover(0)
-    setName("")
     setBody("")
     setError("")
     setSent(true)
@@ -63,6 +89,14 @@ export default function ReviewForm({
         <p>Tell others how {subjectLabel} went.</p>
       </div>
 
+      {!isHydrated || isLoading ? (
+        <p className="review-form__gate">Checking sign-in…</p>
+      ) : !loggedIn ? (
+        <p className="review-form__gate">
+          <Link href="/auth/login">Log in</Link> to post a review.
+        </p>
+      ) : null}
+
       <div className="review-form__stars" role="radiogroup" aria-label="Rating">
         {[1, 2, 3, 4, 5].map((value) => {
           const on = value <= active
@@ -74,11 +108,13 @@ export default function ReviewForm({
               aria-checked={rating === value}
               aria-label={`${value} star${value === 1 ? "" : "s"}`}
               className={`review-form__star${on ? " is-on" : ""}`}
-              onMouseEnter={() => setHover(value)}
+              disabled={!loggedIn}
+              onMouseEnter={() => loggedIn && setHover(value)}
               onMouseLeave={() => setHover(0)}
-              onFocus={() => setHover(value)}
+              onFocus={() => loggedIn && setHover(value)}
               onBlur={() => setHover(0)}
               onClick={() => {
+                if (!loggedIn) return
                 setRating(value)
                 setError("")
               }}
@@ -105,6 +141,8 @@ export default function ReviewForm({
           placeholder="e.g. Ayesha Siddika"
           maxLength={48}
           autoComplete="name"
+          disabled={!loggedIn}
+          required
         />
       </label>
 
@@ -119,6 +157,8 @@ export default function ReviewForm({
           placeholder="What went well? Timing, quality, cleanliness…"
           rows={4}
           maxLength={480}
+          disabled={!loggedIn}
+          required
         />
         <em>{body.length}/480</em>
       </label>
@@ -130,7 +170,12 @@ export default function ReviewForm({
         </p>
       )}
 
-      <button type="submit" className="review-form__submit">
+      <button
+        type="submit"
+        className="review-form__submit"
+        disabled={!canSubmit}
+        aria-disabled={!canSubmit}
+      >
         Post review
       </button>
     </form>

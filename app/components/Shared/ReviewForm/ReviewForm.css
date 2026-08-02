@@ -148,12 +148,44 @@
   cursor: pointer;
   transition:
     background var(--fast) var(--ease),
-    transform var(--fast) var(--ease);
+    transform var(--fast) var(--ease),
+    opacity var(--fast) var(--ease);
 }
 
-.review-form__submit:hover {
+.review-form__submit:hover:not(:disabled) {
   background: #1b2631;
   transform: translateY(-1px);
+}
+
+.review-form__submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  background: #4a5c6b;
+}
+
+.review-form__gate {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--hivis-soft);
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.review-form__gate a {
+  color: var(--hivis-deep);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.review-form__field input:disabled,
+.review-form__field textarea:disabled,
+.review-form__star:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -164,7 +196,7 @@
 
   .review-form__star:hover,
   .review-form__star:focus-visible,
-  .review-form__submit:hover {
+  .review-form__submit:hover:not(:disabled) {
     transform: none;
   }
 }
