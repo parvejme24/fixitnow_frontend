@@ -461,6 +461,19 @@
   font-size: 0.7rem;
   font-weight: 600;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.sd-review__av-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.sd-review__body {
+  flex: 1;
+  min-width: 0;
 }
 
 .sd-review__top {
@@ -468,6 +481,25 @@
   flex-wrap: wrap;
   gap: 6px 12px;
   align-items: baseline;
+}
+
+.sd-review__delete {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--steel-300);
+  cursor: pointer;
+}
+
+.sd-review__delete:hover {
+  color: #b42318;
+  background: #fef3f2;
 }
 
 .sd-review__top strong {

@@ -20,24 +20,26 @@ import { useAuthToast } from "../Toast/AuthToast"
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+const DEMO_PASSWORD = "password123@#"
+
 const DEMO_ACCOUNTS = [
   {
-    name: "Ayesha Siddika",
-    initials: "AS",
-    role: "Customer",
-    email: "ayesha@mail.com",
-  },
-  {
-    name: "Shamim Ahmed",
-    initials: "SA",
-    role: "Technician",
-    email: "shamim@mail.com",
-  },
-  {
-    name: "Platform admin",
-    initials: "PA",
+    name: "Md Parvej",
+    initials: "MP",
     role: "Admin",
-    email: "admin@fixitnow.bd",
+    email: "mdparvej@gmail.com",
+  },
+  {
+    name: "Rakib Hasan",
+    initials: "RH",
+    role: "Technician",
+    email: "rakib@fixitnow.test",
+  },
+  {
+    name: "Ayesha Customer",
+    initials: "AC",
+    role: "Customer",
+    email: "ayesha.customer@fixitnow.test",
   },
 ] as const
 
@@ -163,16 +165,39 @@ function LoginForm() {
     }
   }
 
-  const handleDemo = (account: (typeof DEMO_ACCOUNTS)[number]) => {
+  const handleDemo = async (account: (typeof DEMO_ACCOUNTS)[number]) => {
     if (loading) return
     setEmail(account.email)
-    setPassword("demo1234")
+    setPassword(DEMO_PASSWORD)
     setErrors({})
-    pushToast({
-      kind: "success",
-      title: "Demo credentials filled",
-      message: `Sign in as ${account.name} when that account exists on the API.`,
-    })
+    setLoading(true)
+    try {
+      const user = await login(
+        { email: account.email, password: DEMO_PASSWORD },
+        keepSignedIn
+      )
+      const destination = safeReturnPath(user.role, searchParams.get("next"))
+
+      if (!reduceMotion) launchAuthConfetti()
+      pushToast({
+        kind: "success",
+        title: `Signed in as ${account.role}`,
+        message: `Welcome back, ${user.name}. Opening your dashboard.`,
+      })
+      window.setTimeout(() => {
+        router.push(destination)
+      }, 900)
+    } catch (error) {
+      pushToast({
+        kind: "error",
+        title: "Demo login failed",
+        message: getAuthErrorMessage(
+          error,
+          "Check your email and password, then try again."
+        ),
+      })
+      setLoading(false)
+    }
   }
 
   return (
@@ -267,7 +292,7 @@ function LoginForm() {
       </form>
 
       <div className="auth-divider">
-        <span>or fill a demo email</span>
+        <span>or demo login</span>
       </div>
 
       {DEMO_ACCOUNTS.map((account) => (
@@ -275,7 +300,8 @@ function LoginForm() {
           key={account.email}
           type="button"
           className="demo-acc"
-          onClick={() => handleDemo(account)}
+          disabled={loading}
+          onClick={() => void handleDemo(account)}
         >
           <span className="demo-acc__avatar">{account.initials}</span>
           <span>

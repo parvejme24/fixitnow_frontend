@@ -6,11 +6,13 @@ import {
   CheckCircle2Icon,
   Clock3Icon,
   ShieldCheckIcon,
+  Trash2Icon,
   WrenchIcon,
 } from "lucide-react"
 
 import ReviewForm from "@/app/components/Shared/ReviewForm/ReviewForm"
 import ServiceMedia from "@/app/components/Shared/ServiceMedia"
+import ProfileFace from "@/app/components/Shared/ProfileFace"
 import {
   formatTaka,
   techniciansForService,
@@ -21,12 +23,16 @@ import {
 import { formatServiceTag } from "@/lib/catalogue/normalize"
 import { useAuth } from "@/app/providers/AuthProvider"
 import { useService, useTechnicians } from "@/lib/catalogue/hooks"
+import { initialsFromName } from "@/lib/auth/types"
 import {
+  canDeleteReview,
   getReviewErrorMessage,
   useCreateReview,
   useDeleteReview,
   useServiceReviewsQuery,
+  withViewerReviewProfile,
 } from "@/lib/reviews/hooks"
+import { mergeReviews } from "@/lib/technicians/api"
 import { cn } from "@/lib/utils"
 
 import "./ServiceDetail.css"
@@ -132,8 +138,12 @@ function ServiceDetailView({
 
   const [extraReviews, setExtraReviews] = useState<Review[]>([])
   const reviews = useMemo(
-    () => [...extraReviews, ...(reviewsQuery.data ?? [])],
-    [extraReviews, reviewsQuery.data]
+    () =>
+      withViewerReviewProfile(
+        mergeReviews(extraReviews, reviewsQuery.data ?? []),
+        user
+      ),
+    [extraReviews, reviewsQuery.data, user]
   )
   const [toast, setToast] = useState<{ title: string; message: string } | null>(
     null
@@ -162,7 +172,23 @@ function ServiceDetailView({
         rating: review.rating,
         body: review.body,
       })
-      setExtraReviews((prev) => [saved, ...prev])
+      const author =
+        (saved.author && saved.author !== "Customer"
+          ? saved.author
+          : review.author || user.name) || "Customer"
+      setExtraReviews((prev) => [
+        {
+          ...saved,
+          authorId: saved.authorId ?? user.id,
+          author,
+          initials:
+            saved.initials && saved.author !== "Customer"
+              ? saved.initials
+              : initialsFromName(author),
+          image: saved.image || user.image || null,
+        },
+        ...prev,
+      ])
       setNewId(`${saved.author}-${saved.date}-${saved.body.slice(0, 12)}`)
       setToast({
         title: "Review posted",
@@ -180,6 +206,15 @@ function ServiceDetailView({
 
   const onDelete = async (review: Review) => {
     if (!review.id) return
+    if (!canDeleteReview(user, review)) {
+      setToast({
+        title: "Not allowed",
+        message:
+          "Only the review owner or a technician can delete this review.",
+      })
+      window.setTimeout(() => setToast(null), 3400)
+      return
+    }
     try {
       await deleteReviewMut.mutateAsync(review.id)
       setExtraReviews((prev) => prev.filter((r) => r.id !== review.id))
@@ -353,27 +388,33 @@ function ServiceDetailView({
                     key={key}
                     className={`sd-review${newId === key ? " is-new" : ""}`}
                   >
-                    <div className="sd-review__av">{review.initials}</div>
-                    <div>
+                    <ProfileFace
+                      className="sd-review__av"
+                      imgClassName="sd-review__av-img"
+                      image={review.image}
+                      initials={review.initials}
+                      name={review.author}
+                    />
+                    <div className="sd-review__body">
                       <div className="sd-review__top">
                         <strong>{review.author}</strong>
                         <em>{review.date}</em>
+                        {canDeleteReview(user, review) && review.id ? (
+                          <button
+                            type="button"
+                            className="sd-review__delete"
+                            aria-label="Delete review"
+                            title="Delete review"
+                            onClick={() => void onDelete(review)}
+                          >
+                            <Trash2Icon size={15} />
+                          </button>
+                        ) : null}
                       </div>
                       <div className="sd-review__stars">
                         {stars(review.rating)}
                       </div>
                       <p>{review.body}</p>
-                      {(user?.role === "ADMIN" || user?.role === "CUSTOMER") &&
-                      review.id ? (
-                        <button
-                          type="button"
-                          className="sd-panel__ghost"
-                          style={{ marginTop: 6, fontSize: "0.78rem" }}
-                          onClick={() => void onDelete(review)}
-                        >
-                          Delete review
-                        </button>
-                      ) : null}
                     </div>
                   </div>
                 )

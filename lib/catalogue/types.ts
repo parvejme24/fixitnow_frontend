@@ -72,8 +72,12 @@ export type Technician = {
 
 export type Review = {
   id?: string
+  /** Auth user id of the customer who wrote the review */
+  authorId?: string | null
   author: string
   initials: string
+  /** Customer profile photo URL when API includes it */
+  image?: string | null
   rating: number
   date: string
   body: string

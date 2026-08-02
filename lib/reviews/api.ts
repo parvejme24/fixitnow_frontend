@@ -62,7 +62,7 @@ export async function createReview(input: CreateReviewInput, token: string) {
   return { ...base, id: str(asRecord(raw)?.id) || undefined } as ReviewRecord
 }
 
-/** Author or admin: delete a review. */
+/** Owner or technician: delete a review. */
 export async function deleteReview(id: string, token: string) {
   await apiDelete<unknown>(`/reviews/${id}`, token)
   return id

@@ -16,12 +16,14 @@ import {
   MapPinIcon,
   ShieldCheckIcon,
   StarIcon,
+  Trash2Icon,
 } from "lucide-react"
 import { useReducedMotion } from "framer-motion"
 
 import {
   formatTaka,
   firstName,
+  reviewsForTechnician,
   servicesForTechnician,
   type Review,
   type Service,
@@ -29,6 +31,7 @@ import {
 } from "@/app/lib/catalogue"
 import { useAuth } from "@/app/providers/AuthProvider"
 import ProfileFace from "@/app/components/Shared/ProfileFace"
+import { initialsFromName } from "@/lib/auth/types"
 import {
   getBookingErrorMessage,
   useCreateBooking,
@@ -44,10 +47,13 @@ import {
 import type { TechnicianSlot } from "@/lib/catalogue/types"
 import { technicianWithAuthImage } from "@/lib/catalogue/with-auth-image"
 import { useTechnicianReviewsQuery } from "@/lib/technicians/hooks"
+import { mergeReviews } from "@/lib/technicians/api"
 import {
+  canDeleteReview,
   getReviewErrorMessage,
   useCreateReview,
   useDeleteReview,
+  withViewerReviewProfile,
 } from "@/lib/reviews/hooks"
 import ReviewForm from "@/app/components/Shared/ReviewForm/ReviewForm"
 
@@ -366,11 +372,29 @@ function TechnicianDetailView({
   }, [catalogueServices, tech])
 
   const reviewsQuery = useTechnicianReviewsQuery(tech.id)
-  const baseReviews = reviewsQuery.data ?? []
   const [extraReviews, setExtraReviews] = useState<Review[]>([])
+  const baseReviews = useMemo(() => {
+    const remote = reviewsQuery.data ?? []
+    if (remote.length > 0) return remote
+    // Profile can show seeded rating/count while /reviews still returns [].
+    if (
+      !reviewsQuery.isLoading &&
+      !reviewsQuery.isFetching &&
+      (tech.reviews > 0 || tech.rating > 0)
+    ) {
+      return reviewsForTechnician(tech)
+    }
+    return []
+  }, [
+    reviewsQuery.data,
+    reviewsQuery.isLoading,
+    reviewsQuery.isFetching,
+    tech,
+  ])
   const reviewList = useMemo(
-    () => [...extraReviews, ...baseReviews],
-    [extraReviews, baseReviews]
+    () =>
+      withViewerReviewProfile(mergeReviews(extraReviews, baseReviews), user),
+    [extraReviews, baseReviews, user]
   )
 
   const days = useMemo(() => groupSlotsByDay(apiSlots), [apiSlots])
@@ -575,11 +599,18 @@ function TechnicianDetailView({
               reviews={reviewList}
               ready={reviewsReady}
               style={revealDelay(2)}
-              canDelete={user?.role === "ADMIN" || user?.role === "CUSTOMER"}
+              canDeleteReview={(review) => canDeleteReview(user, review)}
               onDeleteReview={(review) => {
                 void (async () => {
                   if (!review.id) {
                     pushToast("Cannot delete", "This review has no id yet.")
+                    return
+                  }
+                  if (!canDeleteReview(user, review)) {
+                    pushToast(
+                      "Not allowed",
+                      "Only the review owner or a technician can delete this review."
+                    )
                     return
                   }
                   try {
@@ -609,7 +640,23 @@ function TechnicianDetailView({
                       rating: review.rating,
                       body: review.body,
                     })
-                    setExtraReviews((prev) => [saved, ...prev])
+                    const author =
+                      (saved.author && saved.author !== "Customer"
+                        ? saved.author
+                        : review.author || user.name) || "Customer"
+                    setExtraReviews((prev) => [
+                      {
+                        ...saved,
+                        authorId: saved.authorId ?? user.id,
+                        author,
+                        initials:
+                          saved.initials && saved.author !== "Customer"
+                            ? saved.initials
+                            : initialsFromName(author),
+                        image: saved.image || user.image || null,
+                      },
+                      ...prev,
+                    ])
                     pushToast(
                       "Review posted",
                       `Thanks — your rating for ${fname} is live.`
@@ -1098,7 +1145,7 @@ function ReviewsCard({
   style,
   onAddReview,
   onDeleteReview,
-  canDelete,
+  canDeleteReview: canDeleteThisReview,
 }: {
   tech: Technician
   fname: string
@@ -1107,14 +1154,15 @@ function ReviewsCard({
   style?: CSSProperties
   onAddReview: (review: Review) => void
   onDeleteReview?: (review: Review) => void
-  canDelete?: boolean
+  canDeleteReview?: (review: Review) => boolean
 }) {
   return (
     <article className="td-card td-reveal" style={style}>
       <div className="td-reviews-head">
         <h2>Reviews from customers</h2>
         <span>
-          {stars(tech.rating)} {tech.rating.toFixed(1)} · {reviews.length}
+          {stars(tech.rating)} {tech.rating.toFixed(1)} ·{" "}
+          {Math.max(reviews.length, tech.reviews)}
         </span>
       </div>
 
@@ -1147,24 +1195,33 @@ function ReviewsCard({
                 key={`${review.id ?? ""}-${review.author}-${review.date}-${review.body.slice(0, 20)}`}
                 className="td-review"
               >
-                <div className="td-review__avatar">{review.initials}</div>
-                <div>
+                <ProfileFace
+                  className="td-review__avatar"
+                  imgClassName="td-review__avatar-img"
+                  image={review.image}
+                  initials={review.initials}
+                  name={review.author}
+                />
+                <div className="td-review__body">
                   <div className="td-review__top">
                     <strong>{review.author}</strong>
                     <em>{review.date}</em>
+                    {canDeleteThisReview?.(review) &&
+                    review.id &&
+                    onDeleteReview ? (
+                      <button
+                        type="button"
+                        className="td-review__delete"
+                        aria-label="Delete review"
+                        title="Delete review"
+                        onClick={() => onDeleteReview(review)}
+                      >
+                        <Trash2Icon size={15} />
+                      </button>
+                    ) : null}
                   </div>
                   <div className="td-review__stars">{stars(review.rating)}</div>
                   <p>{review.body}</p>
-                  {canDelete && review.id && onDeleteReview ? (
-                    <button
-                      type="button"
-                      className="td-btn-ghost"
-                      style={{ marginTop: 6, fontSize: "0.78rem" }}
-                      onClick={() => onDeleteReview(review)}
-                    >
-                      Delete review
-                    </button>
-                  ) : null}
                 </div>
               </div>
             ))}

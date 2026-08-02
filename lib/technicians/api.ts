@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api"
+import { absoluteMediaUrl, initialsFromName } from "@/lib/auth/types"
 import { normalizeTechnician } from "@/lib/catalogue/normalize"
 import type { Review, Technician, TechnicianSlot } from "@/lib/catalogue/types"
 
@@ -41,11 +42,43 @@ export function normalizeSlot(raw: unknown): TechnicianSlot {
 
 export function normalizeReview(raw: unknown): Review {
   const obj = asRecord(raw) ?? {}
-  const customer = asRecord(obj.customer) ?? asRecord(obj.user)
-  const author = str(
-    customer?.name ?? obj.author ?? obj.name,
-    "Customer"
-  )
+  const customer =
+    asRecord(obj.customer) ??
+    asRecord(obj.user) ??
+    asRecord(obj.author) ??
+    asRecord(obj.reviewer)
+  const customerUser = asRecord(customer?.user) ?? customer
+  const authorRaw =
+    obj.authorName ??
+    customerUser?.name ??
+    customer?.name ??
+    obj.customerName ??
+    (typeof obj.author === "string" ? obj.author : undefined) ??
+    obj.name
+  const author = str(authorRaw, "Customer")
+  const authorId =
+    str(
+      obj.authorId ??
+        obj.userId ??
+        customerUser?.id ??
+        customer?.userId ??
+        obj.customerId ??
+        customer?.id
+    ) || null
+  const image =
+    absoluteMediaUrl(
+      str(
+        customerUser?.profileImage ??
+          customerUser?.image ??
+          customerUser?.avatar ??
+          customer?.profileImage ??
+          customer?.image ??
+          obj.profileImage ??
+          obj.image ??
+          obj.avatar ??
+          obj.authorImage
+      ) || null
+    ) || null
   const dateRaw = str(obj.createdAt ?? obj.date)
   let date = dateRaw
   if (dateRaw) {
@@ -58,14 +91,82 @@ export function normalizeReview(raw: unknown): Review {
       })
     }
   }
+  const initials =
+    str(
+      obj.authorInitials ??
+        customerUser?.initials ??
+        customer?.initials ??
+        obj.initials
+    ) || initialsFromName(author)
   return {
     id: str(obj.id) || undefined,
+    authorId,
     author,
-    initials: str(obj.initials) || author.slice(0, 2).toUpperCase(),
+    initials,
+    image,
     rating: num(obj.rating ?? obj.stars, 5),
     date,
     body: str(obj.comment ?? obj.body ?? obj.review ?? obj.text),
   }
+}
+
+/** Prefer API rows; keep local-only rows; never show the same review twice. */
+export function mergeReviews(local: Review[], remote: Review[]): Review[] {
+  const isGeneric = (name: string) => {
+    const n = name.trim().toLowerCase()
+    return !n || n === "customer" || n === "user"
+  }
+  const fingerprint = (r: Review) =>
+    `${r.rating}|${r.body.trim().toLowerCase()}`
+
+  const enrich = (base: Review, over: Review): Review => ({
+    id: over.id || base.id,
+    authorId: over.authorId || base.authorId,
+    author:
+      isGeneric(over.author) && !isGeneric(base.author)
+        ? base.author
+        : over.author || base.author,
+    initials:
+      isGeneric(over.author) && !isGeneric(base.author)
+        ? base.initials
+        : over.initials || base.initials,
+    image: over.image || base.image,
+    rating: over.rating || base.rating,
+    date: over.date || base.date,
+    body: over.body || base.body,
+  })
+
+  const byId = new Map<string, Review>()
+  const byFp = new Map<string, Review>()
+
+  const ingest = (review: Review) => {
+    const fp = fingerprint(review)
+    const current =
+      (review.id ? byId.get(review.id) : undefined) || byFp.get(fp)
+    const next = current ? enrich(current, review) : review
+    if (next.id) byId.set(next.id, next)
+    byFp.set(fingerprint(next), next)
+  }
+
+  for (const r of remote) ingest(r)
+  for (const r of local) ingest(r)
+
+  const result: Review[] = []
+  const seen = new Set<string>()
+  const take = (r: Review) => {
+    const merged =
+      (r.id ? byId.get(r.id) : undefined) || byFp.get(fingerprint(r)) || r
+    const key = merged.id
+      ? `id:${merged.id}`
+      : `fp:${fingerprint(merged)}`
+    if (seen.has(key)) return
+    seen.add(key)
+    result.push(merged)
+  }
+
+  for (const r of local) take(r)
+  for (const r of remote) take(r)
+  return result
 }
 
 function unwrapTechnician(data: unknown): unknown {
