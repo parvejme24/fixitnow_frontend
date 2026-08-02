@@ -27,6 +27,7 @@ import {
   type TechnicianProfileUpdate,
 } from "@/lib/technicians/api"
 import { technicianKeys } from "@/lib/technicians/query-keys"
+import { liveQueryOptions } from "@/lib/query/live"
 import type { Technician, TechnicianSlot } from "@/lib/catalogue/types"
 
 function requireToken(token: string | null | undefined): string {
@@ -58,8 +59,8 @@ export function useMyTechnicianSlots() {
     queryKey: technicianKeys.meSlots(),
     queryFn: () => fetchSlotsForTechnician(id!, token),
     enabled: Boolean(token && id),
-    staleTime: 15_000,
     placeholderData: keepPreviousData,
+    ...liveQueryOptions,
   })
 }
 
@@ -68,7 +69,9 @@ export function useTechnicianReviewsQuery(id: string, enabled = true) {
     queryKey: technicianKeys.reviews(id),
     queryFn: () => fetchTechnicianReviews(id),
     enabled: Boolean(id) && enabled,
-    staleTime: 30_000,
+    ...liveQueryOptions,
+    staleTime: 5_000,
+    refetchInterval: 8_000,
   })
 }
 

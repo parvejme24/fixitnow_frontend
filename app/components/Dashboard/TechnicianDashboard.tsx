@@ -4,18 +4,26 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState, type RefObject } from "react"
 import {
+  BanknoteIcon,
+  CalendarCheck2Icon,
   CalendarDaysIcon,
+  CalendarOffIcon,
+  CalendarRangeIcon,
+  CheckCircle2Icon,
+  Clock3Icon,
   InboxIcon,
   LayoutDashboardIcon,
   LoaderCircleIcon,
   LockIcon,
   LogOutIcon,
+  ReceiptIcon,
   ShieldAlertIcon,
   StarIcon,
   TagsIcon,
   UserRoundIcon,
   WalletIcon,
   WrenchIcon,
+  XCircleIcon,
 } from "lucide-react"
 import { useReducedMotion } from "framer-motion"
 
@@ -34,7 +42,13 @@ import {
   useMyBookings,
   useUpdateBookingStatus,
 } from "@/lib/bookings/hooks"
-import type { Booking, BookingStatus as ApiBookingStatus } from "@/lib/bookings/types"
+import type { Booking } from "@/lib/bookings/types"
+import {
+  advanceActionLabel,
+  canShowJobFlow,
+  nextJobAdvance,
+} from "@/lib/bookings/job-flow"
+import BookingStatusFlow from "@/app/components/Bookings/BookingStatusFlow"
 import { useCategories } from "@/lib/catalogue/hooks"
 import {
   addOneHour,
@@ -62,6 +76,12 @@ import {
   StatusBadge,
   useDashToasts,
 } from "./DashShared"
+import {
+  EarningsChartCard,
+  type EarnChartType,
+  type EarnPoint,
+  type EarnRange,
+} from "./EarningsChartCard"
 
 const TABS = [
   "Overview",
@@ -80,6 +100,92 @@ function tabFromSearch(raw: string | null): TechTab {
     (tab) => tab.toLowerCase() === raw.trim().toLowerCase()
   )
   return match ?? "Overview"
+}
+
+const EARN_STATUSES = [
+  "PAID",
+  "COMPLETED",
+  "IN_PROGRESS",
+  "EN_ROUTE",
+  "ON_SITE",
+] as const
+
+function localDayKey(d: Date) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, "0")
+  const day = String(d.getDate()).padStart(2, "0")
+  return `${y}-${m}-${day}`
+}
+
+function startOfLocalDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+function parseEarnDate(b: { createdAt?: string; date: string }) {
+  for (const src of [b.createdAt, b.date]) {
+    if (!src) continue
+    const direct = new Date(src)
+    if (!Number.isNaN(direct.getTime())) return startOfLocalDay(direct)
+    const match = src
+      .trim()
+      .match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/)
+    if (match) {
+      const parsed = new Date(`${match[2]} ${match[1]}, ${match[3]}`)
+      if (!Number.isNaN(parsed.getTime())) return startOfLocalDay(parsed)
+    }
+  }
+  return null
+}
+
+function buildDailyEarnPoints(
+  paid: Booking[],
+  days: number
+): EarnPoint[] {
+  const today = startOfLocalDay(new Date())
+  const points: EarnPoint[] = []
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(today)
+    d.setDate(today.getDate() - i)
+    points.push({
+      key: localDayKey(d),
+      label:
+        days <= 7
+          ? d.toLocaleDateString("en-US", { weekday: "short" })
+          : String(d.getDate()),
+      value: 0,
+    })
+  }
+  const byKey = new Map(points.map((p) => [p.key, p]))
+  for (const b of paid) {
+    const d = parseEarnDate(b)
+    if (!d) continue
+    const row = byKey.get(localDayKey(d))
+    if (row) row.value += b.amount
+  }
+  return points
+}
+
+function buildMonthlyEarnPoints(paid: Booking[]): EarnPoint[] {
+  const today = startOfLocalDay(new Date())
+  const points: EarnPoint[] = []
+  for (let i = 5; i >= 0; i -= 1) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    points.push({
+      key,
+      label: d.toLocaleString("en-US", { month: "short" }),
+      value: 0,
+    })
+  }
+  const byKey = new Map(points.map((p) => [p.key, p]))
+  for (const b of paid) {
+    const d = parseEarnDate(b)
+    if (!d) continue
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    const row = byKey.get(key)
+    if (row) row.value += b.amount
+  }
+  return points
 }
 
 function nextSevenDays() {
@@ -137,6 +243,8 @@ export default function TechnicianDashboard() {
   const [editSlotId, setEditSlotId] = useState<string | null>(null)
   const [editStart, setEditStart] = useState("09:00")
   const [editEnd, setEditEnd] = useState("10:00")
+  const [earnRange, setEarnRange] = useState<EarnRange>("30d")
+  const [earnChart, setEarnChart] = useState<EarnChartType>("area")
 
   const rawById = useMemo(() => {
     const map = new Map<string, Booking>()
@@ -184,7 +292,7 @@ export default function TechnicianDashboard() {
       window.clearTimeout(offId)
       window.clearTimeout(onId)
     }
-  }, [tab, reduceMotion])
+  }, [tab, earnRange, earnChart, reduceMotion])
 
   useEffect(() => {
     if (!tech) return
@@ -213,8 +321,23 @@ export default function TechnicianDashboard() {
 
   const pending = bookings.filter((b) => b.status === "REQUESTED")
   const upcoming = bookings.filter((b) =>
-    ["ACCEPTED", "PAID", "IN_PROGRESS"].includes(b.status)
+    ["ACCEPTED", "PAID", "IN_PROGRESS", "EN_ROUTE", "ON_SITE"].includes(
+      b.status
+    )
   )
+  const completedJobs = bookings.filter((b) => b.status === "COMPLETED")
+  const cancelledJobs = bookings.filter((b) =>
+    ["CANCELLED", "DECLINED"].includes(b.status)
+  )
+  const awaitingPay = bookings.filter((b) => b.status === "ACCEPTED")
+  const paidJobs = bookings.filter((b) =>
+    ["PAID", "COMPLETED"].includes(b.status)
+  )
+  const totalEarned = paidJobs.reduce((s, b) => s + b.amount, 0)
+  const awaitingPayAmount = awaitingPay.reduce((s, b) => s + b.amount, 0)
+  const avgPaidJob = paidJobs.length
+    ? Math.round(totalEarned / paidJobs.length)
+    : 0
   const monthEarn = bookings
     .filter((b) => ["PAID", "COMPLETED", "IN_PROGRESS"].includes(b.status))
     .reduce((s, b) => s + b.amount, 0)
@@ -250,20 +373,8 @@ export default function TechnicianDashboard() {
     }
   }
 
-  type AdvanceStatus = Extract<
-    ApiBookingStatus,
-    "EN_ROUTE" | "ON_SITE" | "COMPLETED"
-  >
-
-  const nextAdvance = (raw: Booking | undefined): AdvanceStatus | null => {
-    if (!raw) return null
-    if (raw.status === "ACCEPTED" || raw.status === "PAID") return "EN_ROUTE"
-    if (raw.status === "EN_ROUTE") return "ON_SITE"
-    if (raw.status === "ON_SITE" || raw.status === "IN_PROGRESS") {
-      return "COMPLETED"
-    }
-    return null
-  }
+  const nextAdvance = (raw: Booking | undefined) =>
+    raw ? nextJobAdvance(raw.status) : null
 
   const advanceStatus = async (id: string) => {
     if (advancingId) return
@@ -290,10 +401,7 @@ export default function TechnicianDashboard() {
 
   const advanceLabel = (raw: Booking | undefined) => {
     const next = nextAdvance(raw)
-    if (next === "EN_ROUTE") return "En route"
-    if (next === "ON_SITE") return "On site"
-    if (next === "COMPLETED") return "Complete"
-    return null
+    return next ? advanceActionLabel(next) : null
   }
 
   const toggleOnline = async () => {
@@ -415,33 +523,26 @@ export default function TechnicianDashboard() {
     setSkillDraft("")
   }
 
-  const earningsMonths = useMemo(() => {
+  const earningsSeries = useMemo(() => {
     const paid = (bookingsQuery.data ?? []).filter((b) =>
-      ["PAID", "COMPLETED", "IN_PROGRESS", "EN_ROUTE", "ON_SITE"].includes(
-        b.status
-      )
+      (EARN_STATUSES as readonly string[]).includes(b.status)
     )
-    const byMonth = new Map<string, number>()
-    for (const b of paid) {
-      let label = "Now"
-      const src = b.createdAt || b.date
-      const d = new Date(src)
-      if (!Number.isNaN(d.getTime())) {
-        label = d.toLocaleString("en-US", { month: "short" })
-      } else if (typeof src === "string") {
-        const parts = src.trim().split(/\s+/)
-        if (parts.length >= 2) label = parts[1].slice(0, 3)
-      }
-      byMonth.set(label, (byMonth.get(label) ?? 0) + b.amount)
-    }
-    const rows = Array.from(byMonth.entries()).map(([label, value]) => ({
-      label,
-      value,
-    }))
-    return rows.length ? rows : [{ label: "—", value: 0 }]
-  }, [bookingsQuery.data])
+    if (earnRange === "7d") return buildDailyEarnPoints(paid, 7)
+    if (earnRange === "30d") return buildDailyEarnPoints(paid, 30)
+    return buildMonthlyEarnPoints(paid)
+  }, [bookingsQuery.data, earnRange])
 
-  const maxEarn = Math.max(...earningsMonths.map((m) => m.value), 1)
+  const maxEarn = Math.max(...earningsSeries.map((m) => m.value), 1)
+  const earnTitle =
+    earnRange === "7d"
+      ? "Daily earnings"
+      : earnRange === "30d"
+        ? "Last 30 days"
+        : "Monthly earnings"
+  const earnSubtitle =
+    earnRange === "months"
+      ? "Last 6 months from your bookings"
+      : "From your paid & active bookings"
   const publicHref = techId ? `/technician?id=${techId}` : "/technicians"
   const categories = (categoriesQuery.data ?? []).filter((c) => c.isVisible)
 
@@ -508,7 +609,7 @@ export default function TechnicianDashboard() {
       label: "Account",
       items: [
         {
-          label: "Photo & account",
+          label: "My profile",
           href: "/dashboard/profile",
           icon: <UserRoundIcon />,
         },
@@ -532,6 +633,12 @@ export default function TechnicianDashboard() {
   }, [upcoming])
 
   const openSlotCount = slots.filter((s) => !s.isBooked).length
+  const bookedSlotCount = slots.filter((s) => s.isBooked).length
+  const weekCapacity = SLOT_TIMES.length * week.length
+  const closedSlotCount = Math.max(0, weekCapacity - slots.length)
+  const daysWithOpen = new Set(
+    slots.filter((s) => !s.isBooked).map((s) => s.date.slice(0, 10))
+  ).size
 
   return (
     <DashShell
@@ -572,9 +679,6 @@ export default function TechnicianDashboard() {
               </button>
               Taking jobs
             </div>
-            <Link href={publicHref} className="dash-btn dash-btn--primary">
-              View public profile →
-            </Link>
           </div>
         </header>
 
@@ -602,48 +706,205 @@ export default function TechnicianDashboard() {
           </div>
         ) : null}
 
+        {tab !== "Public profile" && tab !== "Categories" ? (
         <div className="stat-row">
-          <StatCard
-            icon={<InboxIcon size={18} />}
-            value={pending.length}
-            label="Pending requests"
-            delta="Answer within 30 min"
-            delay={0}
-          />
-          <StatCard
-            icon={<CalendarDaysIcon size={18} />}
-            value={openSlotCount}
-            label="Open slots"
-            delta={
-              openSlotCount === 0
-                ? "Tap to open slots"
-                : slotsQuery.isFetching
-                  ? "Refreshing…"
-                  : "Next 7 days"
-            }
-            variant="sky"
-            delay={55}
-            onClick={() => setTab("Availability")}
-          />
-          <StatCard
-            icon={<WalletIcon size={18} />}
-            value={monthEarn}
-            label="Earnings this month"
-            delta="+18% vs June"
-            variant="signal"
-            prefix="৳"
-            delay={110}
-          />
-          <StatCard
-            icon={<StarIcon size={18} />}
-            value={tech?.rating ?? 0}
-            label="Your rating"
-            delta={`${tech?.reviews ?? 0} reviews`}
-            variant="violet"
-            decimals={1}
-            delay={165}
-          />
+          {tab === "Bookings" ? (
+            <>
+              <StatCard
+                icon={<Clock3Icon size={18} />}
+                value={pending.length}
+                label="Pending requests"
+                delta="Waiting for your answer"
+                variant="hivis"
+                delay={0}
+                animate={!loading}
+              />
+              <StatCard
+                icon={<WrenchIcon size={18} />}
+                value={upcoming.length}
+                label="Active jobs"
+                delta={
+                  awaitingPay.length
+                    ? `${awaitingPay.length} awaiting payment`
+                    : "Accepted & in progress"
+                }
+                variant="sky"
+                delay={55}
+                animate={!loading}
+              />
+              <StatCard
+                icon={<CheckCircle2Icon size={18} />}
+                value={completedJobs.length}
+                label="Completed"
+                delta="Jobs finished"
+                variant="signal"
+                delay={110}
+                animate={!loading}
+              />
+              <StatCard
+                icon={<XCircleIcon size={18} />}
+                value={cancelledJobs.length}
+                label="Cancelled / declined"
+                delta="Closed without a visit"
+                variant="flare"
+                delay={165}
+                animate={!loading}
+              />
+            </>
+          ) : tab === "Availability" ? (
+            <>
+              <StatCard
+                icon={<CalendarDaysIcon size={18} />}
+                value={openSlotCount}
+                label="Open slots"
+                delta={
+                  !isVerified
+                    ? "Locked until verified"
+                    : slotsQuery.isFetching
+                      ? "Refreshing…"
+                      : "Bookable this week"
+                }
+                variant="hivis"
+                delay={0}
+                animate={!slotsQuery.isLoading}
+              />
+              <StatCard
+                icon={<CalendarCheck2Icon size={18} />}
+                value={bookedSlotCount}
+                label="Booked slots"
+                delta="Already taken by customers"
+                variant="sky"
+                delay={55}
+                animate={!slotsQuery.isLoading}
+              />
+              <StatCard
+                icon={<CalendarOffIcon size={18} />}
+                value={closedSlotCount}
+                label="Closed cells"
+                delta={`${weekCapacity} cells in the week grid`}
+                variant="flare"
+                delay={110}
+                animate={!slotsQuery.isLoading}
+              />
+              <StatCard
+                icon={<CalendarRangeIcon size={18} />}
+                value={daysWithOpen}
+                label="Days with open slots"
+                delta="Out of the next 7 days"
+                variant="signal"
+                delay={165}
+                animate={!slotsQuery.isLoading}
+              />
+            </>
+          ) : tab === "Earnings" ? (
+            <>
+              <StatCard
+                icon={<WalletIcon size={18} />}
+                value={monthEarn}
+                label="Earnings this month"
+                delta="Paid & in-progress jobs"
+                variant="signal"
+                prefix="৳"
+                delay={0}
+                animate={!loading}
+              />
+              <StatCard
+                icon={<BanknoteIcon size={18} />}
+                value={totalEarned}
+                label="Total earned"
+                delta={`${paidJobs.length} paid / completed`}
+                variant="sky"
+                prefix="৳"
+                delay={55}
+                animate={!loading}
+              />
+              <StatCard
+                icon={<ReceiptIcon size={18} />}
+                value={avgPaidJob}
+                label="Avg. job value"
+                delta="Across paid jobs"
+                variant="violet"
+                prefix="৳"
+                delay={110}
+                animate={!loading}
+              />
+              <StatCard
+                icon={<Clock3Icon size={18} />}
+                value={awaitingPayAmount}
+                label="Awaiting payment"
+                delta={
+                  awaitingPay.length
+                    ? `${awaitingPay.length} accepted job${awaitingPay.length === 1 ? "" : "s"}`
+                    : "Nothing waiting"
+                }
+                variant="hivis"
+                prefix="৳"
+                delay={165}
+                animate={!loading}
+              />
+            </>
+          ) : (
+            <>
+              <StatCard
+                icon={<InboxIcon size={18} />}
+                value={pending.length}
+                label="Pending requests"
+                delta="Answer within 30 min"
+                variant="hivis"
+                delay={0}
+              />
+              <StatCard
+                icon={<CalendarDaysIcon size={18} />}
+                value={openSlotCount}
+                label="Open slots"
+                delta={
+                  openSlotCount === 0
+                    ? "Tap to open slots"
+                    : slotsQuery.isFetching
+                      ? "Refreshing…"
+                      : "Next 7 days"
+                }
+                variant="sky"
+                delay={55}
+                onClick={() => setTab("Availability")}
+              />
+              <StatCard
+                icon={<WalletIcon size={18} />}
+                value={monthEarn}
+                label="Earnings this month"
+                delta="+18% vs June"
+                variant="signal"
+                prefix="৳"
+                delay={110}
+              />
+              <StatCard
+                icon={<StarIcon size={18} />}
+                value={tech?.rating ?? 0}
+                label="Your rating"
+                delta={`${tech?.reviews ?? 0} reviews`}
+                variant="violet"
+                decimals={1}
+                delay={165}
+              />
+            </>
+          )}
         </div>
+        ) : null}
+
+        {tab === "Overview" ? (
+          <EarningsChartCard
+            className="mb-earn-overview"
+            title={earnTitle}
+            subtitle={earnSubtitle}
+            range={earnRange}
+            chartType={earnChart}
+            onRangeChange={setEarnRange}
+            onChartTypeChange={setEarnChart}
+            series={earningsSeries}
+            maxValue={maxEarn}
+            barsOn={barsOn}
+          />
+        ) : null}
 
         <DashTabs
           tabs={[...TABS]}
@@ -726,7 +987,7 @@ export default function TechnicianDashboard() {
                   <span className="tech-manage-tile__icon">
                     <UserRoundIcon size={18} />
                   </span>
-                  <strong>Photo & account</strong>
+                  <strong>My profile</strong>
                   <span>Name, phone, photo</span>
                 </Link>
                 <Link href={publicHref} className="tech-manage-tile">
@@ -806,12 +1067,21 @@ export default function TechnicianDashboard() {
               <div className="job-strip" style={{ marginTop: 14 }}>
                 {(todayTomorrow.length ? todayTomorrow : upcoming.slice(0, 4)).map(
                   (b) => {
-                    const label = advanceLabel(rawById.get(b.id))
+                    const raw = rawById.get(b.id)
+                    const flowStatus = raw?.status ?? b.status
                     return (
                       <div key={b.id} className="job-mini">
                         <div className="job-mini__top">
                           <StatusBadge status={b.status} />
-                          <strong>{formatTaka(b.amount)}</strong>
+                          <div className="job-mini__top-end">
+                            <strong>{formatTaka(b.amount)}</strong>
+                            <Link
+                              href={`/bookings/${b.id}`}
+                              className="job-mini__details"
+                            >
+                              Open details
+                            </Link>
+                          </div>
                         </div>
                         <strong>{b.service}</strong>
                         <div
@@ -831,16 +1101,14 @@ export default function TechnicianDashboard() {
                         >
                           {b.date} · {b.time}
                         </div>
-                        {label ? (
-                          <button
-                            type="button"
-                            className="dash-btn dash-btn--primary dash-btn--sm"
-                            style={{ marginTop: 10 }}
-                            disabled={advancingId === b.id}
-                            onClick={() => void advanceStatus(b.id)}
-                          >
-                            {advancingId === b.id ? "Updating…" : label}
-                          </button>
+                        {canShowJobFlow(flowStatus) ? (
+                          <BookingStatusFlow
+                            variant="inline"
+                            actionPlacement="below"
+                            status={flowStatus}
+                            busy={advancingId === b.id}
+                            onAdvance={() => void advanceStatus(b.id)}
+                          />
                         ) : null}
                       </div>
                     )
@@ -1117,13 +1385,13 @@ export default function TechnicianDashboard() {
                         }}
                       >
                         Photo is managed in{" "}
-                        <Link href="/dashboard/profile">Photo & account</Link>
+                        <Link href="/dashboard/profile">My profile</Link>
                       </span>
                     </div>
                   </div>
                   <p>
                     <StatusBadge
-                      status={takingJobs ? "Active" : "Suspended"}
+                      status={takingJobs ? "Active" : "Inactive"}
                     />{" "}
                     {isVerified ? (
                       <span className="badge-soft">Verified</span>
@@ -1193,7 +1461,7 @@ export default function TechnicianDashboard() {
                       Bio
                     </span>
                     <textarea
-                      className="dash-input"
+                      className="dash-textarea"
                       rows={3}
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
@@ -1379,26 +1647,17 @@ export default function TechnicianDashboard() {
 
         {tab === "Earnings" && (
           <div className="dash-grid-2">
-            <section className="dash-card">
-              <div className="dash-card__head">
-                <h2 className="dash-card__title">Monthly earnings</h2>
-                <span className="badge-soft">From your bookings</span>
-              </div>
-              <div className="chart chart--sm">
-                {earningsMonths.map((m) => (
-                  <div key={m.label} className="chart__col">
-                    <div
-                      className={`chart__bar${barsOn ? " is-on" : ""}`}
-                      style={{
-                        ["--h" as string]: `${(m.value / maxEarn) * 100}%`,
-                      }}
-                      data-tip={formatTaka(m.value)}
-                    />
-                    <span className="chart__label">{m.label}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
+            <EarningsChartCard
+              title={earnTitle}
+              subtitle={earnSubtitle}
+              range={earnRange}
+              chartType={earnChart}
+              onRangeChange={setEarnRange}
+              onChartTypeChange={setEarnChart}
+              series={earningsSeries}
+              maxValue={maxEarn}
+              barsOn={barsOn}
+            />
             <section className="dash-card">
               <h2 className="dash-card__title">Paid jobs</h2>
               {bookings
@@ -1407,26 +1666,11 @@ export default function TechnicianDashboard() {
                   <Link
                     key={b.id}
                     href={`/bookings/${b.id}`}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 10,
-                      padding: "10px 0",
-                      borderTop: "1px solid var(--steel-100)",
-                      textDecoration: "none",
-                      color: "inherit",
-                    }}
+                    className="paid-job-row"
                   >
                     <div>
                       <strong>{b.reference}</strong>
-                      <div
-                        style={{
-                          color: "var(--steel-400)",
-                          fontSize: "0.82rem",
-                        }}
-                      >
-                        {b.service}
-                      </div>
+                      <div className="paid-job-row__meta">{b.service}</div>
                     </div>
                     <strong>{formatTaka(b.amount)}</strong>
                   </Link>

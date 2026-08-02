@@ -15,6 +15,7 @@ import {
   fetchTopTechnicians,
 } from "@/lib/catalogue/api"
 import { catalogueKeys } from "@/lib/catalogue/query-keys"
+import { liveQueryOptions } from "@/lib/query/live"
 import type {
   ServicesQuery,
   TechniciansQuery,
@@ -111,6 +112,6 @@ export function useTechnicianSlots(id: string, enabled = true) {
     queryKey: catalogueKeys.technicianSlots(id),
     queryFn: () => fetchTechnicianSlots(id),
     enabled: Boolean(id) && enabled,
-    staleTime: 30_000,
+    ...liveQueryOptions,
   })
 }

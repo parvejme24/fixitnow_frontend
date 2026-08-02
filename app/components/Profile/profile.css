@@ -212,14 +212,47 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  color: var(--steel-500);
-  font-size: 0.88rem;
 }
 
-.profile-meta-row span {
+.profile-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px 12px;
-  border-radius: 9px;
-  background: var(--paper);
+  border-radius: 999px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.profile-meta-chip em {
+  font-style: normal;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+.profile-meta-chip--role {
+  background: rgba(124, 107, 255, 0.14);
+  color: #5546d6;
+}
+
+.profile-meta-chip--status.is-active {
+  background: rgba(18, 184, 134, 0.14);
+  color: #07785a;
+}
+
+.profile-meta-chip--status.is-inactive {
+  background: rgba(154, 171, 184, 0.2);
+  color: #5c6f7e;
+}
+
+.profile-meta-chip--joined {
+  background: rgba(255, 201, 60, 0.22);
+  color: #9a6b00;
 }
 
 .profile-actions {

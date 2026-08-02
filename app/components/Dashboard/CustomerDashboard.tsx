@@ -45,7 +45,14 @@ import {
   useDashToasts,
 } from "./DashShared"
 
-type Filter = "All" | "Active" | "Completed" | "Cancelled"
+type Filter = "All" | "Requested" | "Completed" | "Cancelled"
+
+const BOOKING_FILTERS: Filter[] = [
+  "All",
+  "Requested",
+  "Completed",
+  "Cancelled",
+]
 
 const TABS = ["Bookings", "Payments", "Reviews", "Track a job"]
 
@@ -60,6 +67,7 @@ export default function CustomerDashboard() {
   const [cancelId, setCancelId] = useState<string | null>(null)
   const [leavingIds, setLeavingIds] = useState<string[]>([])
   const [reviewId, setReviewId] = useState<string | null>(null)
+  const [trackId, setTrackId] = useState<string | null>(null)
   const [stars, setStars] = useState(0)
   const [hoverStar, setHoverStar] = useState(0)
   const [reviewBody, setReviewBody] = useState("")
@@ -137,7 +145,7 @@ export default function CustomerDashboard() {
 
   const filtered = useMemo(() => {
     return bookings.filter((b) => {
-      if (filter === "Active") return isActiveStatus(b.status)
+      if (filter === "Requested") return b.status === "REQUESTED"
       if (filter === "Completed") return b.status === "COMPLETED"
       if (filter === "Cancelled")
         return b.status === "CANCELLED" || b.status === "DECLINED"
@@ -145,12 +153,38 @@ export default function CustomerDashboard() {
     })
   }, [bookings, filter])
 
-  const trackBooking =
-    bookings.find((b) => b.status === "IN_PROGRESS") ||
-    bookings.find((b) => isActiveStatus(b.status))
+  const filterCounts = useMemo(() => {
+    const counts: Record<Filter, number> = {
+      All: bookings.length,
+      Requested: bookings.filter((b) => b.status === "REQUESTED").length,
+      Completed: bookings.filter((b) => b.status === "COMPLETED").length,
+      Cancelled: bookings.filter(
+        (b) => b.status === "CANCELLED" || b.status === "DECLINED"
+      ).length,
+    }
+    return counts
+  }, [bookings])
+
+  const trackBooking = useMemo(() => {
+    if (trackId) {
+      const picked = bookings.find((b) => b.id === trackId)
+      if (picked) return picked
+    }
+    return (
+      bookings.find((b) => b.status === "IN_PROGRESS") ||
+      bookings.find((b) => b.status === "PAID") ||
+      bookings.find((b) => isActiveStatus(b.status)) ||
+      null
+    )
+  }, [bookings, trackId])
 
   const cancelTarget = bookings.find((b) => b.id === cancelId)
   const reviewTarget = bookings.find((b) => b.id === reviewId)
+
+  const openTrack = (id: string) => {
+    setTrackId(id)
+    setTab("Track a job")
+  }
 
   const confirmCancel = async () => {
     if (!cancelTarget || cancelling) return
@@ -265,7 +299,7 @@ export default function CustomerDashboard() {
       label: "Account",
       items: [
         {
-          label: "Profile",
+          label: "My profile",
           href: "/dashboard/profile",
           icon: <UserRoundIcon />,
         },
@@ -277,42 +311,82 @@ export default function CustomerDashboard() {
   const actionFor = (b: DashBooking) => {
     if (b.status === "ACCEPTED") {
       return (
+        <div className="dash-actions">
+          <button
+            type="button"
+            className="dash-btn dash-btn--primary dash-btn--sm"
+            disabled={payingId === b.id}
+            onClick={() => void payNow(b)}
+          >
+            {payingId === b.id ? "Starting…" : "Pay now"}
+          </button>
+          <button
+            type="button"
+            className="dash-btn dash-btn--danger dash-btn--sm"
+            onClick={() => setCancelId(b.id)}
+          >
+            Cancel
+          </button>
+        </div>
+      )
+    }
+
+    if (b.status === "PAID" || b.status === "IN_PROGRESS") {
+      return (
         <button
           type="button"
           className="dash-btn dash-btn--primary dash-btn--sm"
-          disabled={payingId === b.id}
-          onClick={() => void payNow(b)}
+          onClick={() => openTrack(b.id)}
         >
-          {payingId === b.id ? "Starting…" : "Pay now"}
+          Track job
         </button>
       )
     }
-    if (b.status === "COMPLETED" && !b.reviewed) {
+
+    if (b.status === "COMPLETED") {
       return (
-        <button
-          type="button"
-          className="dash-btn dash-btn--ghost dash-btn--sm"
-          onClick={() => setReviewId(b.id)}
-        >
-          Leave review
-        </button>
+        <div className="dash-actions">
+          <Link
+            href={`/bookings/${b.id}`}
+            className="dash-btn dash-btn--completed dash-btn--sm"
+          >
+            Job completed
+          </Link>
+          {b.reviewed ? (
+            <span className="badge-soft">Reviewed</span>
+          ) : (
+            <button
+              type="button"
+              className="dash-btn dash-btn--review dash-btn--sm"
+              onClick={() => setReviewId(b.id)}
+            >
+              <StarIcon size={14} aria-hidden />
+              Make a review
+            </button>
+          )}
+        </div>
       )
     }
-    if (["REQUESTED", "ACCEPTED", "PAID"].includes(b.status)) {
+
+    if (b.status === "REQUESTED") {
       return (
         <button
           type="button"
-          className="dash-btn dash-btn--ghost dash-btn--sm"
+          className="dash-btn dash-btn--danger dash-btn--sm"
           onClick={() => setCancelId(b.id)}
         >
           Cancel
         </button>
       )
     }
+
     return (
-      <button type="button" className="dash-btn dash-btn--ghost dash-btn--sm">
+      <Link
+        href={`/bookings/${b.id}`}
+        className="dash-btn dash-btn--ghost dash-btn--sm"
+      >
         Details
-      </button>
+      </Link>
     )
   }
 
@@ -399,20 +473,19 @@ export default function CustomerDashboard() {
         {tab === "Bookings" && (
           <section>
             <div className="chip-row">
-              {(["All", "Active", "Completed", "Cancelled"] as Filter[]).map(
-                (f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    className={`dash-chip${filter === f ? " is-active" : ""}`}
-                    onClick={() => setFilter(f)}
-                  >
-                    {f}
-                  </button>
-                )
-              )}
+              {BOOKING_FILTERS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  className={`dash-chip${filter === f ? " is-active" : ""}`}
+                  onClick={() => setFilter(f)}
+                >
+                  {f}
+                  <span className="dash-chip__count">{filterCounts[f]}</span>
+                </button>
+              ))}
             </div>
-            <div className="table-wrap">
+            <div className="table-wrap table-wrap--scroll">
               {loading ? (
                 <>
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -429,60 +502,64 @@ export default function CustomerDashboard() {
                 </div>
               ) : (
                 <>
-                  <table className="dash-table">
-                    <thead>
-                      <tr>
-                        <th>Reference</th>
-                        <th>Service</th>
-                        <th>Technician</th>
-                        <th>Slot</th>
-                        <th>Amount</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map((b) => (
-                        <tr
-                          key={b.id}
-                          className={
-                            leavingIds.includes(b.id) ? "is-leaving" : undefined
-                          }
-                        >
-                          <td>
-                            <Link href={`/bookings/${b.id}`}>
-                              <strong>{b.reference}</strong>
-                            </Link>
-                          </td>
-                          <td>
-                            <div className="cell-stack">
-                              <span>{b.service}</span>
-                              <small>{b.area}</small>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="cell-person">
-                              <span className="dash-avatar-sm">
-                                {b.technician.initials}
-                              </span>
-                              <span>{b.technician.name}</span>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="cell-stack">
-                              <span>{b.date}</span>
-                              <small>{b.time}</small>
-                            </div>
-                          </td>
-                          <td>{formatTaka(b.amount)}</td>
-                          <td>
-                            <StatusBadge status={b.status} />
-                          </td>
-                          <td>{actionFor(b)}</td>
+                  <div className="table-scroll">
+                    <table className="dash-table dash-table--bookings">
+                      <thead>
+                        <tr>
+                          <th>Reference</th>
+                          <th>Service</th>
+                          <th>Technician</th>
+                          <th>Slot</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                          <th>Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {filtered.map((b) => (
+                          <tr
+                            key={b.id}
+                            className={
+                              leavingIds.includes(b.id)
+                                ? "is-leaving"
+                                : undefined
+                            }
+                          >
+                            <td>
+                              <Link href={`/bookings/${b.id}`}>
+                                <strong>{b.reference}</strong>
+                              </Link>
+                            </td>
+                            <td>
+                              <div className="cell-stack">
+                                <span>{b.service}</span>
+                                <small>{b.area}</small>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="cell-person">
+                                <span className="dash-avatar-sm">
+                                  {b.technician.initials}
+                                </span>
+                                <span>{b.technician.name}</span>
+                              </div>
+                            </td>
+                            <td>
+                              <div className="cell-stack">
+                                <span>{b.date}</span>
+                                <small>{b.time}</small>
+                              </div>
+                            </td>
+                            <td>{formatTaka(b.amount)}</td>
+                            <td>
+                              <StatusBadge status={b.status} />
+                            </td>
+                            <td>{actionFor(b)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                   <div className="table-foot">
                     <span>
                       Showing {filtered.length} of {bookings.length} bookings
@@ -503,45 +580,47 @@ export default function CustomerDashboard() {
         )}
 
         {tab === "Payments" && (
-          <section className="table-wrap">
+          <section className="table-wrap table-wrap--scroll">
             {payments.length === 0 ? (
               <div className="dash-empty">
                 <h3>No payments yet</h3>
                 <p>Paid bookings will show up here.</p>
               </div>
             ) : (
-              <table className="dash-table">
-                <thead>
-                  <tr>
-                    <th>Payment</th>
-                    <th>Method</th>
-                    <th>Booking</th>
-                    <th>Amount</th>
-                    <th>Date</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <strong>PAY-{p.id.slice(0, 8).toUpperCase()}</strong>
-                      </td>
-                      <td>{p.method}</td>
-                      <td>
-                        <Link href={`/bookings/${p.bookingId}`}>
-                          {p.bookingRef}
-                        </Link>
-                      </td>
-                      <td>{formatTaka(p.amount)}</td>
-                      <td>{p.date}</td>
-                      <td>
-                        <span className="badge-soft">{p.status}</span>
-                      </td>
+              <div className="table-scroll">
+                <table className="dash-table dash-table--payments">
+                  <thead>
+                    <tr>
+                      <th>Payment</th>
+                      <th>Method</th>
+                      <th>Booking</th>
+                      <th>Amount</th>
+                      <th>Date</th>
+                      <th>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {payments.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <strong>PAY-{p.id.slice(0, 8).toUpperCase()}</strong>
+                        </td>
+                        <td>{p.method}</td>
+                        <td>
+                          <Link href={`/bookings/${p.bookingId}`}>
+                            {p.bookingRef}
+                          </Link>
+                        </td>
+                        <td>{formatTaka(p.amount)}</td>
+                        <td>{p.date}</td>
+                        <td>
+                          <span className="badge-soft">{p.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         )}

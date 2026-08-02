@@ -21,13 +21,47 @@ import {
 } from "@/lib/bookings/api"
 import { bookingKeys } from "@/lib/bookings/query-keys"
 import type {
+  Booking,
+  BookingStatus,
   CreateBookingInput,
   UpdateBookingStatusInput,
 } from "@/lib/bookings/types"
+import { liveQueryOptions } from "@/lib/query/live"
+import { technicianKeys } from "@/lib/technicians/query-keys"
+import { adminStatsKeys } from "@/lib/admin/use-admin-platform"
+import { catalogueKeys } from "@/lib/catalogue/query-keys"
 
 function requireToken(token: string | null | undefined): string {
   if (!token) throw new ApiError("Sign in required", "UNAUTHORIZED", 401)
   return token
+}
+
+function isTerminalBookingStatus(status: BookingStatus | undefined) {
+  return (
+    status === "COMPLETED" ||
+    status === "CANCELLED" ||
+    status === "DECLINED"
+  )
+}
+
+function invalidateBookingUniverse(
+  qc: ReturnType<typeof useQueryClient>,
+  booking?: Booking | null
+) {
+  void qc.invalidateQueries({ queryKey: bookingKeys.all })
+  void qc.invalidateQueries({ queryKey: adminStatsKeys.all })
+  void qc.invalidateQueries({ queryKey: technicianKeys.meSlots() })
+  if (booking?.technicianId) {
+    void qc.invalidateQueries({
+      queryKey: technicianKeys.slots(booking.technicianId),
+    })
+    void qc.invalidateQueries({
+      queryKey: catalogueKeys.technicianSlots(booking.technicianId),
+    })
+  }
+  if (booking?.id) {
+    qc.setQueryData(bookingKeys.detail(booking.id), booking)
+  }
 }
 
 export function useMyBookings(enabled = true) {
@@ -36,8 +70,8 @@ export function useMyBookings(enabled = true) {
     queryKey: bookingKeys.mine(),
     queryFn: () => fetchMyBookings(requireToken(token)),
     enabled: Boolean(token) && enabled,
-    staleTime: 15_000,
     placeholderData: keepPreviousData,
+    ...liveQueryOptions,
   })
 }
 
@@ -47,8 +81,8 @@ export function useAdminBookingsQuery(enabled = true) {
     queryKey: bookingKeys.admin(),
     queryFn: () => fetchAdminBookings(requireToken(token)),
     enabled: Boolean(token) && enabled,
-    staleTime: 15_000,
     placeholderData: keepPreviousData,
+    ...liveQueryOptions,
   })
 }
 
@@ -58,12 +92,12 @@ export function useBooking(id: string, enabled = true) {
     queryKey: bookingKeys.detail(id),
     queryFn: () => fetchBooking(id, requireToken(token)),
     enabled: Boolean(token && id) && enabled,
+    ...liveQueryOptions,
+    refetchInterval: (query) => {
+      if (isTerminalBookingStatus(query.state.data?.status)) return false
+      return liveQueryOptions.refetchInterval
+    },
   })
-}
-
-function invalidateBookingLists(qc: ReturnType<typeof useQueryClient>) {
-  void qc.invalidateQueries({ queryKey: bookingKeys.mine() })
-  void qc.invalidateQueries({ queryKey: bookingKeys.admin() })
 }
 
 export function useCreateBooking() {
@@ -73,8 +107,7 @@ export function useCreateBooking() {
     mutationFn: (input: CreateBookingInput) =>
       createBooking(input, requireToken(token)),
     onSuccess: (booking) => {
-      invalidateBookingLists(qc)
-      qc.setQueryData(bookingKeys.detail(booking.id), booking)
+      invalidateBookingUniverse(qc, booking)
     },
   })
 }
@@ -85,8 +118,7 @@ export function useAcceptBooking() {
   return useMutation({
     mutationFn: (id: string) => acceptBooking(id, requireToken(token)),
     onSuccess: (booking) => {
-      invalidateBookingLists(qc)
-      qc.setQueryData(bookingKeys.detail(booking.id), booking)
+      invalidateBookingUniverse(qc, booking)
     },
   })
 }
@@ -97,8 +129,7 @@ export function useDeclineBooking() {
   return useMutation({
     mutationFn: (id: string) => declineBooking(id, requireToken(token)),
     onSuccess: (booking) => {
-      invalidateBookingLists(qc)
-      qc.setQueryData(bookingKeys.detail(booking.id), booking)
+      invalidateBookingUniverse(qc, booking)
     },
   })
 }
@@ -109,8 +140,7 @@ export function useCancelBooking() {
   return useMutation({
     mutationFn: (id: string) => cancelBooking(id, requireToken(token)),
     onSuccess: (booking) => {
-      invalidateBookingLists(qc)
-      qc.setQueryData(bookingKeys.detail(booking.id), booking)
+      invalidateBookingUniverse(qc, booking)
     },
   })
 }
@@ -127,8 +157,7 @@ export function useUpdateBookingStatus() {
       status: UpdateBookingStatusInput["status"]
     }) => updateBookingStatus(id, { status }, requireToken(token)),
     onSuccess: (booking) => {
-      invalidateBookingLists(qc)
-      qc.setQueryData(bookingKeys.detail(booking.id), booking)
+      invalidateBookingUniverse(qc, booking)
     },
   })
 }

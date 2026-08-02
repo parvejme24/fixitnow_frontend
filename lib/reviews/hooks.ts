@@ -29,7 +29,10 @@ export function useServiceReviewsQuery(serviceId: string, enabled = true) {
     queryKey: reviewKeys.service(serviceId),
     queryFn: () => fetchServiceReviews(serviceId),
     enabled: Boolean(serviceId) && enabled,
-    staleTime: 30_000,
+    staleTime: 5_000,
+    refetchInterval: 8_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 }
 
@@ -53,7 +56,7 @@ export function useCreateReview() {
           queryKey: catalogueKeys.service(input.serviceId),
         })
       }
-      void qc.invalidateQueries({ queryKey: bookingKeys.mine() })
+      void qc.invalidateQueries({ queryKey: bookingKeys.all })
     },
   })
 }

@@ -212,11 +212,21 @@ function ProfileForm({ user }: { user: AuthUser }) {
           <div className="field">
             <span>Account</span>
             <div className="profile-meta-row">
-              <span>Role · {user.role}</span>
-              <span>Status · {user.isActive === false ? "Inactive" : "Active"}</span>
+              <span className="profile-meta-chip profile-meta-chip--role">
+                <em>Role</em>
+                {user.role}
+              </span>
+              <span
+                className={`profile-meta-chip profile-meta-chip--status${
+                  user.isActive === false ? " is-inactive" : " is-active"
+                }`}
+              >
+                <em>Status</em>
+                {user.isActive === false ? "Inactive" : "Active"}
+              </span>
               {user.createdAt ? (
-                <span>
-                  Joined ·{" "}
+                <span className="profile-meta-chip profile-meta-chip--joined">
+                  <em>Joined</em>
                   {new Date(user.createdAt).toLocaleDateString("en-GB", {
                     day: "2-digit",
                     month: "short",
@@ -261,7 +271,7 @@ function ProfileForm({ user }: { user: AuthUser }) {
 }
 
 function ProfileBody() {
-  const { user, isLoading, refreshUser } = useAuth()
+  const { user, isLoading } = useAuth()
 
   if (isLoading) {
     return (
@@ -304,15 +314,6 @@ function ProfileBody() {
               Update your name, phone, and photo. Password changes stay on a
               separate page.
             </p>
-          </div>
-          <div className="dash-head__actions">
-            <button
-              type="button"
-              className="dash-btn dash-btn--ghost"
-              onClick={() => void refreshUser()}
-            >
-              Refresh
-            </button>
           </div>
         </header>
         <ProfileForm user={user} />

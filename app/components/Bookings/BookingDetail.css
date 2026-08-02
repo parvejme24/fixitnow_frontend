@@ -1,0 +1,79 @@
+.bd-page {
+  --ink: #0e141b;
+  --steel-900: #131b24;
+  --steel-800: #1b2631;
+  --steel-500: #4a5c6b;
+  --steel-400: #6e8091;
+  --steel-300: #9aabb8;
+  --steel-100: #e2e8ed;
+  --concrete: #edf1f4;
+  --paper: #f7f9fb;
+  --white: #ffffff;
+  --hivis: #ffc93c;
+  --hivis-deep: #e5a900;
+  --flare: #ff5a3c;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --font-sans: var(--font-dispatch-sans), system-ui, sans-serif;
+  --font-mono: var(--font-hivis-mono), monospace;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+
+.bd-page *,
+.bd-page *::before,
+.bd-page *::after {
+  box-sizing: border-box;
+}
+
+.bd-page__shell {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  background: var(--paper);
+  padding: 32px 20px 48px;
+}
+
+.bd-page__inner {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.bd-page__card {
+  margin-bottom: 14px;
+}
+
+.bd-page__card:last-child {
+  margin-bottom: 0;
+}
+
+.bd-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.bd-page__status {
+  align-self: flex-start;
+}
+
+@media (max-width: 640px) {
+  .bd-page__shell {
+    padding: 24px 16px 40px;
+    justify-content: flex-start;
+  }
+}

@@ -2,11 +2,13 @@
 
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { Suspense } from "react"
+import { Suspense, useEffect } from "react"
 import { CheckCircle2Icon, LoaderCircleIcon } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
 
 import { useAuth } from "@/app/providers/AuthProvider"
 import { formatTaka } from "@/app/lib/dashboard-data"
+import { bookingKeys } from "@/lib/bookings/query-keys"
 import { usePayment } from "@/lib/payments/hooks"
 import "@/app/components/Dashboard/dashboard.css"
 
@@ -20,7 +22,18 @@ function PaymentSuccessInner() {
   const params = useSearchParams()
   const id = paymentIdFromParams(params)
   const { token } = useAuth()
+  const qc = useQueryClient()
   const paymentQuery = usePayment(id, Boolean(token && id))
+
+  const payment = paymentQuery.data
+  const ok =
+    payment &&
+    ["SUCCESS", "PAID"].includes(String(payment.status).toUpperCase())
+
+  useEffect(() => {
+    if (!ok) return
+    void qc.invalidateQueries({ queryKey: bookingKeys.all })
+  }, [ok, qc])
 
   if (!id) {
     return (
@@ -66,11 +79,6 @@ function PaymentSuccessInner() {
       </div>
     )
   }
-
-  const payment = paymentQuery.data
-  const ok =
-    payment &&
-    ["SUCCESS", "PAID"].includes(String(payment.status).toUpperCase())
 
   return (
     <div className="pay-result">

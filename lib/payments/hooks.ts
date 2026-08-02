@@ -63,12 +63,7 @@ export function useInitiatePayment() {
     },
     onSuccess: (result) => {
       qc.setQueryData(paymentKeys.detail(result.payment.id), result.payment)
-      void qc.invalidateQueries({ queryKey: bookingKeys.mine() })
-      if (result.payment.bookingId) {
-        void qc.invalidateQueries({
-          queryKey: bookingKeys.detail(result.payment.bookingId),
-        })
-      }
+      void qc.invalidateQueries({ queryKey: bookingKeys.all })
       goToShurjoPayCheckout(result.checkoutUrl)
     },
   })
@@ -90,13 +85,7 @@ export function useRefundPayment() {
     },
     onSuccess: (payment) => {
       qc.setQueryData(paymentKeys.detail(payment.id), payment)
-      void qc.invalidateQueries({ queryKey: bookingKeys.admin() })
-      void qc.invalidateQueries({ queryKey: bookingKeys.mine() })
-      if (payment.bookingId) {
-        void qc.invalidateQueries({
-          queryKey: bookingKeys.detail(payment.bookingId),
-        })
-      }
+      void qc.invalidateQueries({ queryKey: bookingKeys.all })
     },
   })
 }

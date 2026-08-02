@@ -197,7 +197,7 @@ export default function DashShell({
         <button
           key={item.label}
           type="button"
-          className="dash-link"
+          className="dash-link dash-link--logout"
           onClick={() =>
             void logout().then(() => {
               window.location.href = "/"
@@ -272,16 +272,22 @@ export default function DashShell({
         >
           <div className="dash-side__head">
             <div className="dash-user">
-              <ProfileFace
-                image={image}
-                initials={initials}
-                className="dash-avatar-sm"
-              />
-              <div>
-                <div className="dash-user__name">
-                  {displayName}
-                  {online ? <span className="dash-user__online" /> : null}
-                </div>
+              <div className="dash-user__face">
+                <ProfileFace
+                  image={image}
+                  initials={initials}
+                  className="dash-avatar-sm"
+                />
+                {online ? (
+                  <span
+                    className="dash-user__online"
+                    aria-label="Online"
+                    title="Online"
+                  />
+                ) : null}
+              </div>
+              <div className="dash-user__meta">
+                <div className="dash-user__name">{displayName}</div>
                 <div className="dash-user__role">{roleLabel}</div>
               </div>
             </div>

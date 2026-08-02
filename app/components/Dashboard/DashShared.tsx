@@ -38,7 +38,7 @@ export function StatCard({
   label: string
   delta: string
   deltaDir?: "up" | "down"
-  variant?: "sky" | "violet" | "signal" | "flare"
+  variant?: "sky" | "violet" | "signal" | "flare" | "hivis"
   prefix?: string
   decimals?: number
   delay?: number

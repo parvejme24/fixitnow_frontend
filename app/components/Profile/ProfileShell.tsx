@@ -10,6 +10,7 @@ import {
   MapPinIcon,
   StarIcon,
   TagIcon,
+  TagsIcon,
   UserRoundIcon,
   UsersIcon,
   WalletIcon,
@@ -95,31 +96,36 @@ function navForRole(role: AuthRole, techId?: string | null): DashNavGroup[] {
           },
           {
             label: "Bookings",
-            href: "/dashboard/technician",
+            href: "/dashboard/technician?tab=Bookings",
             icon: <InboxIcon />,
           },
           {
             label: "Availability",
-            href: "/dashboard/technician",
+            href: "/dashboard/technician?tab=Availability",
             icon: <CalendarDaysIcon />,
           },
           {
             label: "Earnings",
-            href: "/dashboard/technician",
+            href: "/dashboard/technician?tab=Earnings",
             icon: <WalletIcon />,
           },
         ],
       },
       {
-        label: "Profile",
+        label: "Manage profile",
         items: [
           {
-            label: "My services",
-            href: "/dashboard/technician",
+            label: "Public profile",
+            href: "/dashboard/technician?tab=Public%20profile",
             icon: <WrenchIcon />,
           },
           {
-            label: "Public profile",
+            label: "Categories",
+            href: "/dashboard/technician?tab=Categories",
+            icon: <TagsIcon />,
+          },
+          {
+            label: "View live page",
             href: publicHref,
             icon: <StarIcon />,
           },

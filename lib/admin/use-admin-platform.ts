@@ -40,8 +40,12 @@ export function useAdminStatsQuery() {
     queryKey: adminStatsKeys.overview(),
     queryFn: () => fetchAdminStats(requireToken(token)),
     enabled: Boolean(token),
-    staleTime: 30_000,
     placeholderData: keepPreviousData,
+    staleTime: 5_000,
+    refetchInterval: 8_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
 }
 
