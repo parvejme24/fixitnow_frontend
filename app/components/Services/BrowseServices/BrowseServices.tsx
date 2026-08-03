@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { useReducedMotion } from "framer-motion"
 import {
+  ArrowDownWideNarrowIcon,
+  ArrowUpNarrowWideIcon,
   Grid2X2Icon,
   ListIcon,
   SearchIcon,
@@ -16,7 +18,9 @@ import {
   type CategoryId,
   type Service,
 } from "@/app/lib/catalogue"
-import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
+import BrowseSelect, {
+  type BrowseSelectOption,
+} from "@/app/components/Shared/BrowseSelect/BrowseSelect"
 import ServiceMedia from "@/app/components/Shared/ServiceMedia"
 import { formatServiceTag } from "@/lib/catalogue/normalize"
 import {
@@ -30,12 +34,24 @@ import "./BrowseServices.css"
 type View = "grid" | "list"
 type SortKey = "pop" | "rating" | "price-asc" | "price-desc"
 
-const SORT_OPTIONS = [
+const SORT_OPTIONS: BrowseSelectOption[] = [
   { value: "pop", label: "Most booked" },
   { value: "rating", label: "Top rated" },
-  { value: "price-asc", label: "Price: low to high" },
-  { value: "price-desc", label: "Price: high to low" },
-] as const
+  {
+    value: "price-asc",
+    label: "Lowest price",
+    description: "Low → high",
+    icon: <ArrowUpNarrowWideIcon size={15} />,
+    keywords: "price low to high cheapest",
+  },
+  {
+    value: "price-desc",
+    label: "Highest price",
+    description: "High → low",
+    icon: <ArrowDownWideNarrowIcon size={15} />,
+    keywords: "price high to low expensive",
+  },
+]
 
 const RATING_CHIPS = [
   { label: "Any", value: 0 },
@@ -468,8 +484,9 @@ export default function BrowseServices() {
                 aria-label="Sort services"
                 value={sort}
                 onValueChange={(value) => setSort(value as SortKey)}
-                options={[...SORT_OPTIONS]}
-                triggerClassName="w-auto min-w-[12.5rem]"
+                options={SORT_OPTIONS}
+                triggerClassName="w-auto min-w-[12.75rem]"
+                contentClassName="min-w-[13.5rem]"
               />
 
               <div className="view-toggle">

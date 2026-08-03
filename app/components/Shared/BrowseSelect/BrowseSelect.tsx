@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
 } from "react"
 import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react"
 import { createPortal } from "react-dom"
@@ -15,6 +16,10 @@ import { cn } from "@/lib/utils"
 export type BrowseSelectOption = {
   value: string
   label: string
+  /** Optional secondary line under the label. */
+  description?: string
+  /** Optional leading icon in the menu row. */
+  icon?: ReactNode
   /** Extra text matched when searchable (e.g. email). */
   keywords?: string
 }
@@ -61,7 +66,7 @@ export default function BrowseSelect({
     if (!q) return options
     return options.filter((option) => {
       const hay =
-        `${option.label} ${option.keywords || ""} ${option.value}`.toLowerCase()
+        `${option.label} ${option.description || ""} ${option.keywords || ""} ${option.value}`.toLowerCase()
       return hay.includes(q)
     })
   }, [options, query, searchable])
@@ -70,10 +75,25 @@ export default function BrowseSelect({
     const el = rootRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
+    const longest = options.reduce((max, option) => {
+      const text = option.description
+        ? `${option.label} ${option.description}`
+        : option.label
+      return Math.max(max, text.length)
+    }, 0)
+    const contentWidth = Math.ceil(longest * 7.6 + (options.some((o) => o.icon) ? 72 : 52))
+    const width = Math.min(
+      Math.max(rect.width, contentWidth, 220),
+      Math.max(window.innerWidth - 24, 200)
+    )
+    let left = rect.left
+    if (left + width > window.innerWidth - 12) {
+      left = Math.max(12, window.innerWidth - width - 12)
+    }
     setMenuPos({
       top: rect.bottom + 6,
-      left: rect.left,
-      width: Math.max(rect.width, 220),
+      left,
+      width,
     })
   }
 
@@ -97,7 +117,7 @@ export default function BrowseSelect({
       window.removeEventListener("resize", onScroll)
       window.removeEventListener("scroll", onScroll, true)
     }
-  }, [open])
+  }, [open, options])
 
   useEffect(() => {
     if (open && searchable) {
@@ -137,9 +157,17 @@ export default function BrowseSelect({
         onKeyDown={onTriggerKey}
       >
         <span
-          className={cn("truncate text-left", !selected && "text-[#6E8091]")}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-2 text-left",
+            !selected && "text-[#6E8091]"
+          )}
         >
-          {selected?.label || placeholder}
+          {selected?.icon ? (
+            <span className="browse-select-trigger__icon" aria-hidden>
+              {selected.icon}
+            </span>
+          ) : null}
+          <span className="truncate">{selected?.label || placeholder}</span>
         </span>
         <ChevronDownIcon size={16} className="shrink-0 text-[#4A5C6B]" />
       </button>
@@ -197,12 +225,33 @@ export default function BrowseSelect({
                         aria-selected={active}
                         className={cn(
                           "browse-select-option",
+                          option.icon && "has-icon",
+                          option.description && "has-desc",
                           active && "is-active"
                         )}
                         onClick={() => pick(option.value)}
                       >
-                        <span className="truncate">{option.label}</span>
-                        {active ? <CheckIcon size={16} /> : null}
+                        {option.icon ? (
+                          <span className="browse-select-option__icon" aria-hidden>
+                            {option.icon}
+                          </span>
+                        ) : null}
+                        <span className="browse-select-option__text">
+                          <span className="browse-select-option__label">
+                            {option.label}
+                          </span>
+                          {option.description ? (
+                            <span className="browse-select-option__desc">
+                              {option.description}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span
+                          className="browse-select-option__check"
+                          aria-hidden={!active}
+                        >
+                          {active ? <CheckIcon size={15} strokeWidth={2.5} /> : null}
+                        </span>
                       </button>
                     )
                   })

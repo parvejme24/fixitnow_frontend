@@ -4,7 +4,7 @@ import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { useReducedMotion } from "framer-motion"
-import { SearchIcon, StarIcon } from "lucide-react"
+import { ArrowDownWideNarrowIcon, ArrowUpNarrowWideIcon, SearchIcon, StarIcon } from "lucide-react"
 
 import {
   categoryName,
@@ -12,7 +12,9 @@ import {
   type CategoryId,
   type Technician,
 } from "@/app/lib/catalogue"
-import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
+import BrowseSelect, {
+  type BrowseSelectOption,
+} from "@/app/components/Shared/BrowseSelect/BrowseSelect"
 import ProfileFace from "@/app/components/Shared/ProfileFace"
 import { useAuth } from "@/app/providers/AuthProvider"
 import { useAreas, useCategories, useTechnicians } from "@/lib/catalogue/hooks"
@@ -21,12 +23,24 @@ import "../../Services/BrowseServices/BrowseServices.css"
 
 type SortKey = "pop" | "rating" | "price-asc" | "price-desc"
 
-const SORT_OPTIONS = [
+const SORT_OPTIONS: BrowseSelectOption[] = [
   { value: "pop", label: "Most booked" },
   { value: "rating", label: "Top rated" },
-  { value: "price-asc", label: "Fee: low to high" },
-  { value: "price-desc", label: "Fee: high to low" },
-] as const
+  {
+    value: "price-asc",
+    label: "Lowest fee",
+    description: "Low → high",
+    icon: <ArrowUpNarrowWideIcon size={15} />,
+    keywords: "fee low to high cheapest",
+  },
+  {
+    value: "price-desc",
+    label: "Highest fee",
+    description: "High → low",
+    icon: <ArrowDownWideNarrowIcon size={15} />,
+    keywords: "fee high to low expensive",
+  },
+]
 
 const RATING_CHIPS = [
   { label: "Any", value: 0 },
@@ -446,8 +460,9 @@ export default function BrowseTechnicians() {
                 aria-label="Sort technicians"
                 value={sort}
                 onValueChange={(value) => setSort(value as SortKey)}
-                options={[...SORT_OPTIONS]}
-                triggerClassName="w-auto min-w-[12.5rem]"
+                options={SORT_OPTIONS}
+                triggerClassName="w-auto min-w-[12.75rem]"
+                contentClassName="min-w-[13.5rem]"
               />
             </div>
           </div>

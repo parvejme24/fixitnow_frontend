@@ -46,6 +46,10 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "FixItNow",
   description: "Book verified home technicians in Dhaka on fixed time slots",
+  icons: {
+    icon: [{ url: "/settings.png", type: "image/png" }],
+    apple: [{ url: "/settings.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({
