@@ -61,7 +61,7 @@ export default function HowItWorks() {
   return (
     <section className="section hiw-section" aria-labelledby="hiw-heading">
       <div className="hiw-wrap">
-        <div className="section-head">
+        <div className="">
           <p className="hiw-eyebrow">The order things happen in</p>
           <h2 id="hiw-heading" className="display-lg">
             Request, confirm, pay, done

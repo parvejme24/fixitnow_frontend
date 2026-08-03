@@ -1,11 +1,14 @@
 /**
  * Payments API — `/api/v1/payments`
  *
- * POST /payments/initiate              — customer → ShurjoPay checkoutUrl
- * GET|POST /payments/shurjopay/callback — gateway return (backend; no frontend call)
+ * GET|POST /payments/shurjopay/callback — gateway return (backend)
  * POST /payments/webhook               — optional dev stub
+ * POST /payments/initiate              — customer → ShurjoPay checkoutUrl
+ * GET  /payments/me                    — customer payment history
+ * GET  /payments/me/summary            — customer payment summary
+ * GET  /payments/history               — customer payment history (alias)
  * GET  /payments/:id                   — auth
- * POST /payments/:id/refund            — admin
+ * POST /payments/:id/refund            — technician or admin
  */
 import { ApiError, apiGet, apiPost } from "@/lib/api"
 
@@ -24,12 +27,25 @@ export type Payment = {
   id: string
   bookingId: string
   bookingRef?: string
+  service?: string
   amount: number
   method: string
   status: PaymentStatus
   providerTxnId?: string | null
   paidAt?: string | null
   createdAt?: string
+}
+
+export type PaymentSummary = {
+  count: number
+  paidCount: number
+  pendingCount: number
+  failedCount: number
+  refundedCount: number
+  totalPaid: number
+  totalPending: number
+  totalRefunded: number
+  totalFailed: number
 }
 
 export type InitiatePaymentInput = {
@@ -64,12 +80,21 @@ function asRecord(value: unknown): Loose | null {
     : null
 }
 
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
 function str(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback
 }
 
 function num(value: unknown, fallback = 0) {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value.replace(/,/g, "").trim())
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return fallback
 }
 
 function unwrapPayment(data: unknown): Loose {
@@ -82,23 +107,67 @@ function unwrapPayment(data: unknown): Loose {
 export function normalizePayment(raw: unknown): Payment {
   const obj = unwrapPayment(raw)
   const booking = asRecord(obj.booking)
+  const service = asRecord(obj.service) ?? asRecord(booking?.service)
   return {
     id: str(obj.id),
     bookingId: str(obj.bookingId ?? booking?.id),
     bookingRef:
       str(obj.bookingRef ?? booking?.refCode ?? booking?.reference) ||
       undefined,
+    service:
+      str(
+        obj.serviceTitle ??
+          obj.serviceName ??
+          service?.title ??
+          service?.name ??
+          booking?.service
+      ) || undefined,
     amount: num(
       obj.amount ??
         obj.totalAmount ??
         booking?.totalAmount ??
-        asRecord(booking?.service)?.price
+        service?.price
     ),
     method: str(obj.method ?? obj.provider ?? obj.paymentMethod, "SHURJOPAY"),
     status: String(obj.status ?? "PENDING").toUpperCase() as PaymentStatus,
     providerTxnId: str(obj.providerTxnId) || null,
     paidAt: str(obj.paidAt) || null,
     createdAt: str(obj.createdAt) || undefined,
+  }
+}
+
+function listPayments(data: unknown): Payment[] {
+  const items = Array.isArray(data)
+    ? data
+    : asArray(
+        asRecord(data)?.payments ??
+          asRecord(data)?.items ??
+          asRecord(data)?.results ??
+          asRecord(data)?.history
+      )
+  return items.map(normalizePayment).filter((p) => Boolean(p.id))
+}
+
+export function normalizePaymentSummary(raw: unknown): PaymentSummary {
+  const obj = asRecord(raw) ?? {}
+  const nested =
+    asRecord(obj.summary) ?? asRecord(obj.stats) ?? asRecord(obj.data) ?? obj
+  return {
+    count: num(
+      nested.count ?? nested.totalCount ?? nested.totalPayments ?? nested.total
+    ),
+    paidCount: num(
+      nested.paidCount ?? nested.successfulCount ?? nested.successCount
+    ),
+    pendingCount: num(nested.pendingCount ?? nested.awaitingCount),
+    failedCount: num(nested.failedCount ?? nested.cancelledCount),
+    refundedCount: num(nested.refundedCount),
+    totalPaid: num(
+      nested.totalPaid ?? nested.paidAmount ?? nested.successfulAmount
+    ),
+    totalPending: num(nested.totalPending ?? nested.pendingAmount),
+    totalRefunded: num(nested.totalRefunded ?? nested.refundedAmount),
+    totalFailed: num(nested.totalFailed ?? nested.failedAmount),
   }
 }
 
@@ -174,7 +243,30 @@ export async function fetchPayment(id: string, token: string) {
   return normalizePayment(res.data)
 }
 
-/** Admin: `POST /payments/:id/refund` */
+/** Customer: `GET /payments/me` (falls back to `/payments/history`). */
+export async function fetchMyPayments(token: string): Promise<Payment[]> {
+  try {
+    const res = await apiGet<unknown>("/payments/me", undefined, token)
+    return listPayments(res.data)
+  } catch (error) {
+    if (
+      error instanceof ApiError &&
+      (error.status === 404 || error.code === "NOT_FOUND")
+    ) {
+      const res = await apiGet<unknown>("/payments/history", undefined, token)
+      return listPayments(res.data)
+    }
+    throw error
+  }
+}
+
+/** Customer: `GET /payments/me/summary` */
+export async function fetchMyPaymentSummary(token: string) {
+  const res = await apiGet<unknown>("/payments/me/summary", undefined, token)
+  return normalizePaymentSummary(res.data)
+}
+
+/** Technician or admin: `POST /payments/:id/refund` */
 export async function refundPayment(id: string, token: string) {
   const res = await apiPost<unknown>(`/payments/${id}/refund`, {}, token)
   return normalizePayment(res.data)

@@ -11,7 +11,9 @@ import {
   createReview,
   deleteReview,
   fetchServiceReviews,
+  updateReview,
   type CreateReviewInput,
+  type UpdateReviewInput,
 } from "@/lib/reviews/api"
 
 function requireToken(token: string | null | undefined): string {
@@ -56,6 +58,25 @@ export function useCreateReview() {
           queryKey: catalogueKeys.service(input.serviceId),
         })
       }
+      void qc.invalidateQueries({ queryKey: bookingKeys.all })
+    },
+  })
+}
+
+export function useUpdateReview() {
+  const { token } = useAuth()
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      id,
+      input,
+    }: {
+      id: string
+      input: UpdateReviewInput
+    }) => updateReview(id, input, requireToken(token)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: reviewKeys.all })
+      void qc.invalidateQueries({ queryKey: technicianKeys.all })
       void qc.invalidateQueries({ queryKey: bookingKeys.all })
     },
   })

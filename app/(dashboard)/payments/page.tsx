@@ -4,13 +4,14 @@ import CustomerDashboard from "@/app/components/Dashboard/CustomerDashboard"
 import AuthGuard from "@/app/providers/AuthGuard"
 
 export const metadata: Metadata = {
-  title: "My bookings — FixItNow",
+  title: "Payment history — FixItNow",
+  description: "View your FixItNow payment receipts and history.",
 }
 
-export default function BookingsPage() {
+export default function PaymentsPage() {
   return (
     <AuthGuard roles={["CUSTOMER"]}>
-      <CustomerDashboard view="bookings" />
+      <CustomerDashboard view="payments" />
     </AuthGuard>
   )
 }

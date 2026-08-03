@@ -6,16 +6,21 @@ import { useAuth } from "@/app/providers/AuthProvider"
 import { ApiError } from "@/lib/api"
 import { bookingKeys } from "@/lib/bookings/query-keys"
 import {
+  fetchMyPaymentSummary,
+  fetchMyPayments,
   fetchPayment,
   getPaymentErrorMessage,
   goToShurjoPayCheckout,
   initiatePayment,
   refundPayment,
   type InitiatePaymentInput,
+  type Payment,
   type PaymentMethod,
+  type PaymentSummary,
 } from "@/lib/payments/api"
+import { liveQueryOptions } from "@/lib/query/live"
 
-export type { PaymentMethod, InitiatePaymentInput }
+export type { Payment, PaymentMethod, PaymentSummary, InitiatePaymentInput }
 export { getPaymentErrorMessage, goToShurjoPayCheckout }
 
 function requireToken(token: string | null | undefined): string {
@@ -25,7 +30,31 @@ function requireToken(token: string | null | undefined): string {
 
 export const paymentKeys = {
   all: ["payments"] as const,
+  mine: () => [...paymentKeys.all, "mine"] as const,
+  summary: () => [...paymentKeys.all, "summary"] as const,
   detail: (id: string) => [...paymentKeys.all, id] as const,
+}
+
+/** Customer: `GET /payments/me` payment history. */
+export function useMyPaymentsQuery(enabled = true) {
+  const { token } = useAuth()
+  return useQuery({
+    queryKey: paymentKeys.mine(),
+    queryFn: () => fetchMyPayments(requireToken(token)),
+    enabled: Boolean(token) && enabled,
+    ...liveQueryOptions,
+  })
+}
+
+/** Customer: `GET /payments/me/summary`. */
+export function useMyPaymentSummaryQuery(enabled = true) {
+  const { token } = useAuth()
+  return useQuery({
+    queryKey: paymentKeys.summary(),
+    queryFn: () => fetchMyPaymentSummary(requireToken(token)),
+    enabled: Boolean(token) && enabled,
+    ...liveQueryOptions,
+  })
 }
 
 export function usePayment(id: string, enabled = true) {
@@ -64,19 +93,23 @@ export function useInitiatePayment() {
     onSuccess: (result) => {
       qc.setQueryData(paymentKeys.detail(result.payment.id), result.payment)
       void qc.invalidateQueries({ queryKey: bookingKeys.all })
+      void qc.invalidateQueries({ queryKey: paymentKeys.mine() })
+      void qc.invalidateQueries({ queryKey: paymentKeys.summary() })
       goToShurjoPayCheckout(result.checkoutUrl)
     },
   })
 }
 
+/** Technician or admin: refund a payment. */
 export function useRefundPayment() {
   const { token, user } = useAuth()
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => {
-      if (user?.role && user.role !== "ADMIN") {
+      const role = user?.role
+      if (role && role !== "ADMIN" && role !== "TECHNICIAN") {
         throw new ApiError(
-          "Only admins can refund payments.",
+          "Only technicians or admins can refund payments.",
           "FORBIDDEN",
           403
         )
@@ -86,6 +119,9 @@ export function useRefundPayment() {
     onSuccess: (payment) => {
       qc.setQueryData(paymentKeys.detail(payment.id), payment)
       void qc.invalidateQueries({ queryKey: bookingKeys.all })
+      void qc.invalidateQueries({ queryKey: paymentKeys.mine() })
+      void qc.invalidateQueries({ queryKey: paymentKeys.summary() })
+      void qc.invalidateQueries({ queryKey: paymentKeys.all })
     },
   })
 }

@@ -43,6 +43,9 @@ export type DashReview = {
   body: string
   date: string
   bookingRef: string
+  bookingId?: string
+  service?: string
+  technicianId?: string
 }
 
 export type DashUser = {

@@ -107,6 +107,9 @@ export function safeReturnPath(
   if (path === "/bookings" || path.startsWith("/bookings/")) {
     return r === "CUSTOMER" ? next : fallback
   }
+  if (path === "/payments" || path.startsWith("/payments/")) {
+    return r === "CUSTOMER" ? next : fallback
+  }
   if (path === "/dashboard/profile" || path.startsWith("/dashboard/profile/")) {
     return next
   }

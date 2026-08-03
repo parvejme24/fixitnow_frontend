@@ -1,4 +1,4 @@
-import { apiDelete, apiGet, apiPost } from "@/lib/api"
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api"
 import { normalizeReview } from "@/lib/technicians/api"
 import type { Review } from "@/lib/catalogue/types"
 
@@ -27,6 +27,12 @@ export type CreateReviewInput = {
   comment?: string
 }
 
+export type UpdateReviewInput = {
+  rating?: number
+  body?: string
+  comment?: string
+}
+
 export type ReviewRecord = Review & {
   id?: string
 }
@@ -40,6 +46,13 @@ function listReviews(data: unknown): ReviewRecord[] {
     const obj = asRecord(raw) ?? {}
     return { ...base, id: str(obj.id) || undefined }
   })
+}
+
+function unwrapReview(data: unknown): ReviewRecord {
+  const obj = asRecord(data)
+  const raw = obj?.review ?? obj?.item ?? data
+  const base = normalizeReview(raw)
+  return { ...base, id: str(asRecord(raw)?.id) || undefined }
 }
 
 /** Public: reviews for a service. */
@@ -56,10 +69,22 @@ export async function createReview(input: CreateReviewInput, token: string) {
     body: input.body,
   }
   const res = await apiPost<unknown>("/reviews", payload, token)
-  const obj = asRecord(res.data)
-  const raw = obj?.review ?? obj?.item ?? res.data
-  const base = normalizeReview(raw)
-  return { ...base, id: str(asRecord(raw)?.id) || undefined } as ReviewRecord
+  return unwrapReview(res.data)
+}
+
+/** Owner: update own review when the API supports PATCH /reviews/:id. */
+export async function updateReview(
+  id: string,
+  input: UpdateReviewInput,
+  token: string
+) {
+  const payload = {
+    ...input,
+    comment: input.comment ?? input.body,
+    body: input.body,
+  }
+  const res = await apiPatch<unknown>(`/reviews/${id}`, payload, token)
+  return unwrapReview(res.data)
 }
 
 /** Owner or technician: delete a review. */

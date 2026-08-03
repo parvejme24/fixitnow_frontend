@@ -9,7 +9,7 @@ import { useQueryClient } from "@tanstack/react-query"
 import { useAuth } from "@/app/providers/AuthProvider"
 import { formatTaka } from "@/app/lib/dashboard-data"
 import { bookingKeys } from "@/lib/bookings/query-keys"
-import { usePayment } from "@/lib/payments/hooks"
+import { paymentKeys, usePayment } from "@/lib/payments/hooks"
 import "@/app/components/Dashboard/dashboard.css"
 
 import "../payment-result.css"
@@ -33,6 +33,7 @@ function PaymentSuccessInner() {
   useEffect(() => {
     if (!ok) return
     void qc.invalidateQueries({ queryKey: bookingKeys.all })
+    void qc.invalidateQueries({ queryKey: paymentKeys.all })
   }, [ok, qc])
 
   if (!id) {

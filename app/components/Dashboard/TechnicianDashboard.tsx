@@ -44,6 +44,10 @@ import {
 } from "@/lib/bookings/hooks"
 import type { Booking } from "@/lib/bookings/types"
 import {
+  getPaymentErrorMessage,
+  useRefundPayment,
+} from "@/lib/payments/hooks"
+import {
   advanceActionLabel,
   canShowJobFlow,
   nextJobAdvance,
@@ -222,6 +226,8 @@ export default function TechnicianDashboard() {
   const acceptBookingMut = useAcceptBooking()
   const declineBookingMut = useDeclineBooking()
   const updateBookingStatus = useUpdateBookingStatus()
+  const refundPaymentMut = useRefundPayment()
+  const [refundingId, setRefundingId] = useState<string | null>(null)
 
   const tech = profileQuery.data
   const slots = slotsQuery.data ?? []
@@ -402,6 +408,31 @@ export default function TechnicianDashboard() {
   const advanceLabel = (raw: Booking | undefined) => {
     const next = nextAdvance(raw)
     return next ? advanceActionLabel(next) : null
+  }
+
+  const refundPaidJob = async (bookingId: string) => {
+    if (refundingId) return
+    const raw = rawById.get(bookingId)
+    if (!raw?.paymentId) {
+      pushToast(
+        "No payment",
+        "This booking has no payment id to refund.",
+        "error"
+      )
+      return
+    }
+    setRefundingId(bookingId)
+    try {
+      await refundPaymentMut.mutateAsync(raw.paymentId)
+      pushToast(
+        "Refund started",
+        `Refund queued for ${raw.reference || "this job"}.`
+      )
+    } catch (error) {
+      pushToast("Refund failed", getPaymentErrorMessage(error), "error")
+    } finally {
+      setRefundingId(null)
+    }
   }
 
   const toggleOnline = async () => {
@@ -1660,24 +1691,34 @@ export default function TechnicianDashboard() {
             />
             <section className="dash-card">
               <h2 className="dash-card__title">Paid jobs</h2>
-              {bookings
-                .filter((b) => ["PAID", "COMPLETED"].includes(b.status))
-                .map((b) => (
-                  <Link
-                    key={b.id}
-                    href={`/bookings/${b.id}`}
-                    className="paid-job-row"
-                  >
-                    <div>
+              {paidJobs.map((b) => {
+                const raw = rawById.get(b.id)
+                const canRefund =
+                  Boolean(raw?.paymentId) && b.status === "PAID"
+                const busy = refundingId === b.id
+                return (
+                  <div key={b.id} className="paid-job-row">
+                    <Link href={`/bookings/${b.id}`} className="paid-job-row__main">
                       <strong>{b.reference}</strong>
                       <div className="paid-job-row__meta">{b.service}</div>
+                    </Link>
+                    <div className="paid-job-row__aside">
+                      <strong>{formatTaka(b.amount)}</strong>
+                      {canRefund ? (
+                        <button
+                          type="button"
+                          className="dash-btn dash-btn--danger dash-btn--sm"
+                          disabled={busy || refundPaymentMut.isPending}
+                          onClick={() => void refundPaidJob(b.id)}
+                        >
+                          {busy ? "Refunding…" : "Refund"}
+                        </button>
+                      ) : null}
                     </div>
-                    <strong>{formatTaka(b.amount)}</strong>
-                  </Link>
-                ))}
-              {!bookings.some((b) =>
-                ["PAID", "COMPLETED"].includes(b.status)
-              ) ? (
+                  </div>
+                )
+              })}
+              {paidJobs.length === 0 ? (
                 <p style={{ color: "var(--steel-400)", marginTop: 12 }}>
                   Paid jobs will show here once customers complete payment.
                 </p>

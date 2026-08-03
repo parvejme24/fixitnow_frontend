@@ -575,12 +575,10 @@
   padding: 12px 10px;
   border-top: 1px solid var(--steel-100);
   border-radius: 10px;
-  text-decoration: none;
   color: inherit;
   transition:
     background 0.16s var(--ease),
-    border-color 0.16s var(--ease),
-    transform 0.16s var(--ease);
+    border-color 0.16s var(--ease);
 }
 
 .paid-job-row:first-of-type {
@@ -595,11 +593,29 @@
     rgba(255, 243, 208, 0.55) 100%
   );
   border-top-color: transparent;
-  transform: translateX(2px);
 }
 
 .paid-job-row:hover + .paid-job-row {
   border-top-color: transparent;
+}
+
+.paid-job-row__main {
+  min-width: 0;
+  flex: 1;
+  text-decoration: none;
+  color: inherit;
+}
+
+.paid-job-row__main:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.paid-job-row__aside {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .paid-job-row__meta {
@@ -832,6 +848,27 @@
 .status-badge--paid {
   background: rgba(124, 107, 255, 0.15);
   color: #4a3db8;
+}
+
+.status-badge--success {
+  background: rgba(18, 184, 134, 0.15);
+  color: #07785a;
+}
+
+.status-badge--pending,
+.status-badge--initiated {
+  background: rgba(255, 201, 60, 0.22);
+  color: #9a6b00;
+}
+
+.status-badge--failed {
+  background: rgba(255, 90, 60, 0.15);
+  color: #b02d14;
+}
+
+.status-badge--refunded {
+  background: rgba(124, 107, 255, 0.14);
+  color: #5546d6;
 }
 
 .status-badge--in_progress {
@@ -1600,6 +1637,10 @@
   margin: auto;
 }
 
+.dash-modal:has(.pay-receipt) .dash-modal__panel {
+  width: min(640px, 100%);
+}
+
 .dash-modal__title {
   font-family: var(--font-display);
   font-size: 1.3rem;
@@ -1735,9 +1776,80 @@
 
 .review-card__top {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   margin-bottom: 8px;
+}
+
+.review-card__for {
+  margin: 2px 0 4px;
+  font-size: 0.82rem;
+  color: var(--steel-400);
+}
+
+.review-card__tech {
+  color: #2b78c9;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.review-card__tech:hover {
+  text-decoration: underline;
+}
+
+.review-card__post {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(61, 143, 224, 0.08);
+  border: 1px solid rgba(61, 143, 224, 0.18);
+  color: #2b78c9;
+  text-decoration: none;
+  transition:
+    background 0.18s var(--ease),
+    border-color 0.18s var(--ease);
+}
+
+.review-card__post:hover {
+  background: rgba(61, 143, 224, 0.14);
+  border-color: rgba(61, 143, 224, 0.32);
+}
+
+.review-card__post-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-card__post-kicker {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2b78c9;
+}
+
+.review-card__post-go {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: #2b78c9;
+}
+
+.review-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .badge-soft {
@@ -1901,6 +2013,203 @@
   align-items: center;
   gap: 6px;
   justify-content: flex-end;
+}
+
+.pay-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pay-detail__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--steel-100);
+  font-size: 0.92rem;
+}
+
+.pay-detail__row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.pay-detail__row > span:first-child {
+  color: var(--steel-400);
+  flex-shrink: 0;
+}
+
+.pay-detail__row > span:last-child,
+.pay-detail__row > strong {
+  text-align: right;
+  word-break: break-word;
+}
+
+.pay-detail__mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+}
+
+.pay-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pay-receipt__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--ink);
+  color: white;
+}
+
+.pay-receipt__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #131b24;
+  color: var(--hivis);
+  border: 1px solid #2a3642;
+  flex-shrink: 0;
+}
+
+.pay-receipt__logo {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.pay-receipt__logo span {
+  color: var(--hivis);
+}
+
+.pay-receipt__tag {
+  margin: 2px 0 0;
+  font-size: 0.72rem;
+  color: #6b7f8c;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pay-receipt__code {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  text-align: right;
+}
+
+.pay-receipt__code strong {
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.pay-receipt__hero {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--hivis-soft);
+}
+
+.pay-receipt__hero span {
+  color: var(--steel-400);
+  font-size: 0.82rem;
+}
+
+.pay-receipt__hero strong {
+  font-size: 1.35rem;
+  color: var(--ink);
+}
+
+.pay-receipt__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pay-receipt__card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--steel-100);
+  background: white;
+}
+
+.pay-receipt__card--wide {
+  grid-column: 1 / -1;
+}
+
+.pay-receipt__card h4 {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--steel-400);
+  padding-left: 8px;
+  border-left: 3px solid var(--hivis);
+}
+
+.pay-receipt__card dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+
+.pay-receipt__card dt {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--steel-400);
+}
+
+.pay-receipt__card dd {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.pay-receipt__notes {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 560px) {
+  .pay-receipt__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pay-receipt__card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .pay-receipt__brand {
+    flex-wrap: wrap;
+  }
+
+  .pay-receipt__code {
+    margin-left: 0;
+    width: 100%;
+    align-items: flex-start;
+  }
+}
+
+.dash-table--payments .row-actions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .dash-icon-btn {

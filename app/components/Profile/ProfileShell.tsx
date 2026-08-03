@@ -156,14 +156,14 @@ function navForRole(role: AuthRole, techId?: string | null): DashNavGroup[] {
           icon: <InboxIcon />,
         },
         {
+          label: "Payment history",
+          href: "/payments",
+          icon: <WalletIcon />,
+        },
+        {
           label: "Browse services",
           href: "/services",
           icon: <WrenchIcon />,
-        },
-        {
-          label: "Pay a booking",
-          href: "/bookings",
-          icon: <WalletIcon />,
         },
       ],
     },
