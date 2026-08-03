@@ -485,15 +485,17 @@ export default function BrowseServices() {
                 value={sort}
                 onValueChange={(value) => setSort(value as SortKey)}
                 options={SORT_OPTIONS}
-                triggerClassName="w-auto min-w-[12.75rem]"
+                className="result-bar__sort"
+                triggerClassName="w-full min-w-0"
                 contentClassName="min-w-[13.5rem]"
               />
 
-              <div className="view-toggle">
+              <div className="view-toggle" role="group" aria-label="Layout">
                 <button
                   type="button"
                   className={view === "grid" ? "is-active" : ""}
                   aria-label="Grid view"
+                  aria-pressed={view === "grid"}
                   onClick={() => setView("grid")}
                 >
                   <Grid2X2Icon size={16} />
@@ -502,6 +504,7 @@ export default function BrowseServices() {
                   type="button"
                   className={view === "list" ? "is-active" : ""}
                   aria-label="List view"
+                  aria-pressed={view === "list"}
                   onClick={() => setView("list")}
                 >
                   <ListIcon size={16} />

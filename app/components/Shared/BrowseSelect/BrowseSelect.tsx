@@ -13,6 +13,8 @@ import { createPortal } from "react-dom"
 
 import { cn } from "@/lib/utils"
 
+import "./BrowseSelect.css"
+
 export type BrowseSelectOption = {
   value: string
   label: string

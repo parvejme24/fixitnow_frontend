@@ -51,7 +51,12 @@ export default function ForTechnicians() {
   }
 
   return (
-    <section className="section ft-section" aria-labelledby="ft-heading">
+    <section
+      id="for-technicians"
+      className="section ft-section"
+      aria-labelledby="ft-heading"
+      style={{ scrollMarginTop: "5.5rem" }}
+    >
       <div className="ft-wrap">
         <div ref={panelRef} className="ft-panel" data-reveal>
           <span className="ft-circle" aria-hidden />

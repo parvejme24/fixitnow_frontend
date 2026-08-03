@@ -84,8 +84,10 @@ export default function TopTechnicians() {
 
   return (
     <section
+      id="technicians"
       className="section section--dark tt-section"
       aria-labelledby="tt-heading"
+      style={{ scrollMarginTop: "5.5rem" }}
     >
       <div className="tt-wrap">
         <div className="section-head">

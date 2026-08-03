@@ -59,7 +59,12 @@ export default function HowItWorks() {
   }, [reduceMotion])
 
   return (
-    <section className="section hiw-section" aria-labelledby="hiw-heading">
+    <section
+      id="how-it-works"
+      className="section hiw-section"
+      aria-labelledby="hiw-heading"
+      style={{ scrollMarginTop: "5.5rem" }}
+    >
       <div className="hiw-wrap">
         <div className="">
           <p className="hiw-eyebrow">The order things happen in</p>

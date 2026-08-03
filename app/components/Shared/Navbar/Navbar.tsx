@@ -5,10 +5,12 @@ import { usePathname, useRouter } from "next/navigation"
 import { useEffect, useId, useState } from "react"
 import {
   ArrowRightIcon,
+  CalendarDaysIcon,
   KeyRoundIcon,
   LayoutDashboardIcon,
   LogOutIcon,
   UserRoundIcon,
+  UsersIcon,
   WrenchIcon,
 } from "lucide-react"
 
@@ -63,12 +65,25 @@ function dashboardLinksForRole(role: AuthRole) {
   if (role === "ADMIN") {
     return [
       {
-        label: "Admin console",
+        label: "Overview",
         href: "/dashboard/admin",
         icon: LayoutDashboardIcon,
       },
-      { label: "Browse services", href: "/services", icon: WrenchIcon },
-      { label: "Technicians", href: "/technicians", icon: WrenchIcon },
+      {
+        label: "Users",
+        href: "/dashboard/admin/users",
+        icon: UsersIcon,
+      },
+      {
+        label: "Bookings",
+        href: "/dashboard/admin/bookings",
+        icon: CalendarDaysIcon,
+      },
+      {
+        label: "Services",
+        href: "/dashboard/admin/services",
+        icon: WrenchIcon,
+      },
     ]
   }
   return [
@@ -174,7 +189,7 @@ function UserMenu({ user }: { user: AuthUser }) {
       <DropdownMenuContent
         align="end"
         sideOffset={10}
-        className="z-[120] w-64 min-w-64 rounded-[12px] border border-[#1C2733] bg-[#131B24] p-1.5 text-white shadow-[0_16px_40px_rgba(0,0,0,0.45)] ring-0"
+        className="z-[120] max-h-[min(28rem,calc(100vh-5rem))] w-64 min-w-64 overflow-y-auto rounded-[12px] border border-[#1C2733] bg-[#131B24] p-1.5 text-white shadow-[0_16px_40px_rgba(0,0,0,0.45)] ring-0"
         style={{ fontFamily: "var(--font-dispatch-sans), sans-serif" }}
       >
         <div className="px-2.5 py-2.5">
@@ -211,13 +226,15 @@ function UserMenu({ user }: { user: AuthUser }) {
           My profile
         </DropdownMenuItem>
 
-        <DropdownMenuItem
-          className="cursor-pointer rounded-[8px] px-2.5 py-2 text-sm text-[#D5DEE5] focus:bg-white/8 focus:text-white"
-          onClick={() => router.push("/auth/change-password")}
-        >
-          <KeyRoundIcon className="size-4 text-[#9AABB8]" />
-          Change password
-        </DropdownMenuItem>
+        {user.role !== "ADMIN" ? (
+          <DropdownMenuItem
+            className="cursor-pointer rounded-[8px] px-2.5 py-2 text-sm text-[#D5DEE5] focus:bg-white/8 focus:text-white"
+            onClick={() => router.push("/auth/change-password")}
+          >
+            <KeyRoundIcon className="size-4 text-[#9AABB8]" />
+            Change password
+          </DropdownMenuItem>
+        ) : null}
 
         <DropdownMenuSeparator className="mx-1 bg-[#1C2733]" />
 

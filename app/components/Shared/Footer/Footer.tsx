@@ -1,61 +1,10 @@
 "use client"
 
 import Link from "next/link"
-import { motion, useReducedMotion, type Transition } from "framer-motion"
+import { MailIcon, MapPinIcon, PhoneIcon } from "lucide-react"
+import { motion, useReducedMotion } from "framer-motion"
 
 import BrandLogo from "@/app/components/Shared/BrandLogo"
-
-const serviceLinks = [
-  { label: "Plumbing", href: "/services?cat=c1" },
-  { label: "Electrical", href: "/services?cat=c2" },
-  { label: "AC & Cooling", href: "/services?cat=c3" },
-  { label: "Appliance Repair", href: "/services?cat=c4" },
-  { label: "Carpentry", href: "/services?cat=c5" },
-] as const
-
-const technicianLinks = [
-  { label: "Join the network", href: "/auth/register" },
-  { label: "Technician dashboard", href: "/technicians" },
-  { label: "Manage bookings", href: "/bookings" },
-  { label: "Admin console", href: "/auth/login" },
-] as const
-
-const companyLinks = [
-  { label: "How it works", href: "/#how-it-works" },
-  { label: "Pricing", href: "/#pricing" },
-  { label: "Safety standards", href: "/#safety" },
-  { label: "Contact", href: "/#contact" },
-] as const
-
-const columns = [
-  { heading: "Services", links: serviceLinks },
-  { heading: "For technicians", links: technicianLinks },
-  { heading: "Company", links: companyLinks },
-] as const
-
-const fastTransition: Transition = {
-  duration: 0.18,
-  ease: [0.22, 0.68, 0.32, 1],
-}
-
-function FooterLink({ href, label }: { href: string; label: string }) {
-  const reduceMotion = useReducedMotion()
-
-  return (
-    <motion.div
-      className="w-fit"
-      whileHover={reduceMotion ? undefined : { x: 4 }}
-      transition={fastTransition}
-    >
-      <Link
-        href={href}
-        className="block w-fit text-[0.89rem] text-[#9AABB8] no-underline transition-colors duration-[180ms] ease-out hover:text-[#FFC93C] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#FFC93C]"
-      >
-        {label}
-      </Link>
-    </motion.div>
-  )
-}
 
 function LivePulseDot() {
   const reduceMotion = useReducedMotion()
@@ -85,6 +34,21 @@ function LivePulseDot() {
   )
 }
 
+const contactClass =
+  "inline-flex items-center gap-2.5 text-[0.9rem] text-[#9AABB8] no-underline transition-colors hover:text-[#FFC93C] focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-[#FFC93C]"
+
+const iconWrapClass =
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-[8px] bg-[#1C2733] text-[#FFC93C]"
+
+const bottomLinks = [
+  { label: "Terms & Conditions", href: "/terms" },
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "FAQ", href: "/faq" },
+] as const
+
+const MAP_EMBED_SRC =
+  "https://www.google.com/maps?q=Banani,+Dhaka+1213,+Bangladesh&output=embed"
+
 export default function Footer() {
   return (
     <footer
@@ -97,57 +61,92 @@ export default function Footer() {
         className="h-2.5 w-full rounded-none bg-[repeating-linear-gradient(45deg,#FFC93C_0_14px,#0E141B_14px_28px)] [background-size:39.6px_39.6px]"
       />
 
-      <div className="mx-auto w-full max-w-[1240px] px-[18px] min-[701px]:px-6">
-        <div className="grid grid-cols-1 gap-[26px] py-14 pb-10 min-[701px]:grid-cols-2 min-[701px]:gap-[34px] min-[1081px]:grid-cols-[1.6fr_1fr_1fr_1fr]">
-          <div>
+      <div className="mx-auto w-full max-w-[1100px] px-[18px] py-14 pb-10 min-[701px]:px-6">
+        <div className="grid grid-cols-1 items-stretch gap-8 lg:grid-cols-2 lg:gap-10">
+          <div className="flex flex-col text-left">
             <BrandLogo ringOffsetClassName="focus-visible:ring-offset-[#131B24]" />
 
-            <p className="mt-3.5 max-w-[34ch] text-[0.9rem] leading-[1.55] text-[#9AABB8]">
-              Book a verified technician for a fixed time slot. They show up, or
-              you don&apos;t pay.
+            <p className="mt-3.5 max-w-[42ch] text-[0.9rem] leading-[1.55] text-[#9AABB8]">
+              FixItNow helps you book verified home technicians in Dhaka on
+              fixed time slots. Clear starting prices, confirmed availability,
+              and no charge if the job never starts.
             </p>
 
             <div
-              className="mt-6 inline-flex items-center gap-1.5 rounded-full bg-[#DDF6EE] px-2.5 py-1 text-[0.68rem] font-semibold tracking-[0.07em] text-[#07785A] uppercase"
+              className="mt-6 inline-flex w-fit items-center gap-1.5 rounded-full bg-[#DDF6EE] px-2.5 py-1 text-[0.68rem] font-semibold tracking-[0.07em] text-[#07785A] uppercase"
               role="status"
               aria-live="polite"
             >
               <LivePulseDot />
-              <span>1,204 jobs this week</span>
+              <span>Dhaka · live booking</span>
+            </div>
+
+            <div className="mt-8 flex flex-col items-start gap-3.5">
+              <a href="mailto:support@fixitnow.com" className={contactClass}>
+                <span className={iconWrapClass}>
+                  <MailIcon size={15} aria-hidden />
+                </span>
+                support@fixitnow.com
+              </a>
+
+              <a href="tel:+8801712345678" className={contactClass}>
+                <span className={iconWrapClass}>
+                  <PhoneIcon size={15} aria-hidden />
+                </span>
+                +880 1712-345678
+              </a>
+
+              <p className={`m-0 ${contactClass}`}>
+                <span className={iconWrapClass}>
+                  <MapPinIcon size={15} aria-hidden />
+                </span>
+                Banani, Dhaka 1213
+              </p>
             </div>
           </div>
 
-          {columns.map((column) => (
-            <nav key={column.heading} aria-label={column.heading}>
-              <h4
-                className="mb-3.5 text-[0.7rem] font-semibold tracking-[0.16em] text-[#FFC93C] uppercase"
-                style={{
-                  fontFamily:
-                    "var(--font-hivis-mono), IBM Plex Mono, monospace",
-                }}
-              >
-                {column.heading}
-              </h4>
-              <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
-                {column.links.map((link) => (
-                  <li key={`${column.heading}-${link.href}`}>
-                    <FooterLink href={link.href} label={link.label} />
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          ))}
+          <div className="flex min-h-[240px] flex-col overflow-hidden rounded-[14px] border border-[#26333F] bg-[#1C2733] shadow-[0_12px_32px_rgba(0,0,0,0.28)] lg:min-h-[280px]">
+            <div className="flex items-center gap-2 border-b border-[#26333F] px-3.5 py-2.5">
+              <span className={iconWrapClass}>
+                <MapPinIcon size={15} aria-hidden />
+              </span>
+              <p className="m-0 text-[0.82rem] text-[#9AABB8]">
+                Banani, Dhaka 1213
+              </p>
+            </div>
+            <iframe
+              title="FixItNow main branch map — Banani, Dhaka"
+              src={MAP_EMBED_SRC}
+              className="h-full min-h-[220px] w-full flex-1 border-0 lg:min-h-[240px]"
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+          </div>
         </div>
+      </div>
 
-        <div
-          className="flex flex-wrap items-center justify-between gap-3.5 border-t border-[#26333F] py-[18px] text-[0.8rem] text-[#6E8091]"
-          style={{
-            fontFamily: "var(--font-hivis-mono), IBM Plex Mono, monospace",
-          }}
+      <div
+        className="mx-auto flex w-full max-w-[1240px] flex-col items-center justify-center gap-3 border-t border-[#26333F] px-[18px] py-[18px] text-center text-[0.8rem] text-[#6E8091] min-[701px]:px-6 sm:flex-row sm:justify-between"
+        style={{
+          fontFamily: "var(--font-hivis-mono), IBM Plex Mono, monospace",
+        }}
+      >
+        <p className="m-0">© 2026 FixItNow</p>
+        <nav
+          aria-label="Legal"
+          className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
         >
-          <p className="m-0">© 2026 FixItNow · Dhaka, Bangladesh</p>
-          <p className="m-0">Verified techs · Fixed slots · Dhaka coverage</p>
-        </div>
+          {bottomLinks.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="text-[#6E8091] no-underline transition-colors hover:text-[#FFC93C]"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
       </div>
     </footer>
   )

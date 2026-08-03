@@ -157,7 +157,12 @@ export default function CategoriesSection() {
   }, [reduceMotion, isLoading, categories.length])
 
   return (
-    <section className="cats-section" aria-labelledby="cats-heading">
+    <section
+      id="categories"
+      className="cats-section"
+      aria-labelledby="cats-heading"
+      style={{ scrollMarginTop: "5.5rem" }}
+    >
       <div className="cats-wrap">
         <div className="section-head">
           <div>

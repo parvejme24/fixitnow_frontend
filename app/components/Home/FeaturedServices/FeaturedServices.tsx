@@ -98,8 +98,10 @@ export default function FeaturedServices() {
 
   return (
     <section
+      id="featured"
       className="section section--concrete fs-section"
       aria-labelledby="featured-heading"
+      style={{ scrollMarginTop: "5.5rem" }}
     >
       <div className="fs-wrap">
         <div className="section-head">
