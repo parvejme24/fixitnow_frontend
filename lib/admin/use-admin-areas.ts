@@ -17,6 +17,7 @@ import {
 import { useAuth } from "@/app/providers/AuthProvider"
 import { ApiError } from "@/lib/api"
 import { catalogueKeys } from "@/lib/catalogue/query-keys"
+import { liveQueryOptions } from "@/lib/query/live"
 import type { Area } from "@/lib/catalogue/types"
 
 export const adminAreaKeys = {
@@ -46,9 +47,8 @@ export function useAdminAreasQuery() {
     queryKey: adminAreaKeys.list(),
     queryFn: async () => sortAreas(await fetchAreasList()),
     enabled: Boolean(token),
-    staleTime: 30_000,
     placeholderData: keepPreviousData,
-    refetchOnWindowFocus: false,
+    ...liveQueryOptions,
   })
 }
 

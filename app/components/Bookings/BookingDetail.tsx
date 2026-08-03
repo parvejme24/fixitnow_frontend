@@ -36,6 +36,7 @@ export default function BookingDetail({ bookingId }: { bookingId: string }) {
 
   const booking = bookingQuery.data
   const role = user?.role
+  const canAdvance = role === "TECHNICIAN"
 
   const run = async (label: string, fn: () => Promise<unknown>) => {
     setBusy(true)
@@ -112,7 +113,9 @@ export default function BookingDetail({ bookingId }: { bookingId: string }) {
 
           <header className="dash-head" style={{ marginBottom: 18 }}>
             <div>
-              <p className="dash-eyebrow">Booking detail</p>
+              <p className="dash-eyebrow">
+                {role === "ADMIN" ? "Admin · view only" : "Booking detail"}
+              </p>
               <h1 className="dash-title">{booking.reference}</h1>
               <p className="dash-sub">
                 {booking.service} · {booking.date} · {booking.time}
@@ -160,8 +163,7 @@ export default function BookingDetail({ bookingId }: { bookingId: string }) {
             </div>
           </section>
 
-          {(role === "TECHNICIAN" || role === "ADMIN") &&
-          canShowJobFlow(booking.status) ? (
+          {canAdvance && canShowJobFlow(booking.status) ? (
             <BookingStatusFlow
               status={booking.status}
               busy={busy}
@@ -176,7 +178,8 @@ export default function BookingDetail({ bookingId }: { bookingId: string }) {
             />
           ) : null}
 
-          {role === "CUSTOMER" && canShowJobFlow(booking.status) ? (
+          {(role === "CUSTOMER" || role === "ADMIN") &&
+          canShowJobFlow(booking.status) ? (
             <BookingStatusFlow
               status={booking.status}
               readOnly

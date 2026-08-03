@@ -380,6 +380,7 @@ export default function AdminUsers() {
                         <th>Change status</th>
                         <th>Change role</th>
                         <th>Verification</th>
+                        <th>Bookings</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -515,6 +516,18 @@ export default function AdminUsers() {
                                 ) : (
                                   <span className="mono-muted">No profile</span>
                                 )
+                              ) : (
+                                <span className="mono-muted">—</span>
+                              )}
+                            </td>
+                            <td>
+                              {isTech && u.technicianId ? (
+                                <Link
+                                  href={`/dashboard/admin/bookings?technicianId=${encodeURIComponent(u.technicianId)}`}
+                                  className="dash-btn dash-btn--ghost dash-btn--sm"
+                                >
+                                  View bookings
+                                </Link>
                               ) : (
                                 <span className="mono-muted">—</span>
                               )}

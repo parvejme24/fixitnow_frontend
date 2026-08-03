@@ -18,6 +18,7 @@ import {
 import { useAuth } from "@/app/providers/AuthProvider"
 import { ApiError } from "@/lib/api"
 import { catalogueKeys } from "@/lib/catalogue/query-keys"
+import { liveQueryOptions } from "@/lib/query/live"
 import type { AccountStatus, AdminUser } from "@/app/lib/admin-data"
 
 export const adminUserKeys = {
@@ -49,9 +50,8 @@ export function useAdminUsersQuery(query: AdminUsersQuery = {}) {
     queryKey: adminUserKeys.list(query),
     queryFn: () => fetchUsers(requireToken(token), query),
     enabled: Boolean(token),
-    staleTime: 20_000,
     placeholderData: keepPreviousData,
-    refetchOnWindowFocus: true,
+    ...liveQueryOptions,
   })
 }
 

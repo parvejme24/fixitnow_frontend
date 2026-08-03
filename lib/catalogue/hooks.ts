@@ -35,7 +35,7 @@ export function useAreas() {
   return useQuery({
     queryKey: catalogueKeys.areas(),
     queryFn: fetchAreas,
-    staleTime: 60_000,
+    ...liveQueryOptions,
   })
 }
 
@@ -82,9 +82,8 @@ export function useTechnicians(query: TechniciansQuery = {}) {
   return useQuery({
     queryKey: catalogueKeys.technicians(query),
     queryFn: () => fetchTechnicians(query),
-    staleTime: 30_000,
     placeholderData: keepPreviousData,
-    refetchOnMount: "always",
+    ...liveQueryOptions,
   })
 }
 
