@@ -4,7 +4,6 @@ import Link from "next/link"
 import { useMemo, type RefObject } from "react"
 import {
   AlertTriangleIcon,
-  LoaderCircleIcon,
   ShieldAlertIcon,
   WalletIcon,
 } from "lucide-react"
@@ -110,29 +109,6 @@ export default function AdminDisputes() {
               Live items from unverified technicians, unpaid bookings, and
               refund candidates — no mock disputes API.
             </p>
-          </div>
-          <div className="dash-head__actions">
-            <button
-              type="button"
-              className="dash-btn dash-btn--ghost"
-              onClick={() => {
-                void bookingsQuery.refetch()
-                void usersQuery.refetch()
-              }}
-              disabled={bookingsQuery.isFetching || usersQuery.isFetching}
-            >
-              {bookingsQuery.isFetching || usersQuery.isFetching ? (
-                <>
-                  <LoaderCircleIcon size={16} className="animate-spin" />
-                  Refreshing…
-                </>
-              ) : (
-                "Refresh"
-              )}
-            </button>
-            <Link href="/dashboard/admin" className="dash-btn dash-btn--ghost">
-              Overview
-            </Link>
           </div>
         </header>
 

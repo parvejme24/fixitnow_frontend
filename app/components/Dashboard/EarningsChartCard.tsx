@@ -4,10 +4,11 @@ import { useId } from "react"
 import { ChartAreaIcon, ChartColumnIcon } from "lucide-react"
 
 import { formatTaka } from "@/app/lib/dashboard-data"
+import type { EarnPoint } from "@/lib/bookings/earn-series"
 
 export type EarnRange = "7d" | "30d" | "months"
 export type EarnChartType = "bar" | "area"
-export type EarnPoint = { key: string; label: string; value: number }
+export type { EarnPoint }
 
 export function EarningsChartCard({
   title,

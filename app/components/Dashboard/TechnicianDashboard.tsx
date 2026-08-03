@@ -44,6 +44,11 @@ import {
 } from "@/lib/bookings/hooks"
 import type { Booking } from "@/lib/bookings/types"
 import {
+  buildDailyEarnPoints,
+  buildMonthlyEarnPoints,
+  isRevenueBooking,
+} from "@/lib/bookings/earn-series"
+import {
   getPaymentErrorMessage,
   useRefundPayment,
 } from "@/lib/payments/hooks"
@@ -83,7 +88,6 @@ import {
 import {
   EarningsChartCard,
   type EarnChartType,
-  type EarnPoint,
   type EarnRange,
 } from "./EarningsChartCard"
 
@@ -106,91 +110,7 @@ function tabFromSearch(raw: string | null): TechTab {
   return match ?? "Overview"
 }
 
-const EARN_STATUSES = [
-  "PAID",
-  "COMPLETED",
-  "IN_PROGRESS",
-  "EN_ROUTE",
-  "ON_SITE",
-] as const
-
-function localDayKey(d: Date) {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${y}-${m}-${day}`
-}
-
-function startOfLocalDay(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
-}
-
-function parseEarnDate(b: { createdAt?: string; date: string }) {
-  for (const src of [b.createdAt, b.date]) {
-    if (!src) continue
-    const direct = new Date(src)
-    if (!Number.isNaN(direct.getTime())) return startOfLocalDay(direct)
-    const match = src
-      .trim()
-      .match(/^(\d{1,2})\s+([A-Za-z]{3})\s+(\d{4})/)
-    if (match) {
-      const parsed = new Date(`${match[2]} ${match[1]}, ${match[3]}`)
-      if (!Number.isNaN(parsed.getTime())) return startOfLocalDay(parsed)
-    }
-  }
-  return null
-}
-
-function buildDailyEarnPoints(
-  paid: Booking[],
-  days: number
-): EarnPoint[] {
-  const today = startOfLocalDay(new Date())
-  const points: EarnPoint[] = []
-  for (let i = days - 1; i >= 0; i -= 1) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    points.push({
-      key: localDayKey(d),
-      label:
-        days <= 7
-          ? d.toLocaleDateString("en-US", { weekday: "short" })
-          : String(d.getDate()),
-      value: 0,
-    })
-  }
-  const byKey = new Map(points.map((p) => [p.key, p]))
-  for (const b of paid) {
-    const d = parseEarnDate(b)
-    if (!d) continue
-    const row = byKey.get(localDayKey(d))
-    if (row) row.value += b.amount
-  }
-  return points
-}
-
-function buildMonthlyEarnPoints(paid: Booking[]): EarnPoint[] {
-  const today = startOfLocalDay(new Date())
-  const points: EarnPoint[] = []
-  for (let i = 5; i >= 0; i -= 1) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1)
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    points.push({
-      key,
-      label: d.toLocaleString("en-US", { month: "short" }),
-      value: 0,
-    })
-  }
-  const byKey = new Map(points.map((p) => [p.key, p]))
-  for (const b of paid) {
-    const d = parseEarnDate(b)
-    if (!d) continue
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    const row = byKey.get(key)
-    if (row) row.value += b.amount
-  }
-  return points
-}
+/* revenue series helpers: lib/bookings/earn-series */
 
 function nextSevenDays() {
   const start = new Date()
@@ -556,7 +476,7 @@ export default function TechnicianDashboard() {
 
   const earningsSeries = useMemo(() => {
     const paid = (bookingsQuery.data ?? []).filter((b) =>
-      (EARN_STATUSES as readonly string[]).includes(b.status)
+      isRevenueBooking(b.status)
     )
     if (earnRange === "7d") return buildDailyEarnPoints(paid, 7)
     if (earnRange === "30d") return buildDailyEarnPoints(paid, 30)
