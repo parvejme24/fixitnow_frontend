@@ -6,10 +6,12 @@ import {
   LoaderCircleIcon,
   PlusIcon,
   SearchIcon,
+  SquarePenIcon,
   Trash2Icon,
   WrenchIcon,
 } from "lucide-react"
 
+import BrowseSelect from "@/app/components/Shared/BrowseSelect/BrowseSelect"
 import ServiceMedia from "@/app/components/Shared/ServiceMedia"
 import { formatTaka } from "@/app/lib/catalogue"
 import {
@@ -47,6 +49,34 @@ type FormState = {
   imagePreview: string | null
 }
 
+const EVERY_CATEGORY = "every-category"
+const EVERY_TAG = "every-tag"
+const NO_TAG = "no-tag"
+const EVERY_FEATURED = "every-featured"
+const FEATURED_ONLY = "featured"
+const NOT_FEATURED = "not-featured"
+const EVERY_STATUS = "every-status"
+const ACTIVE_ONLY = "active"
+const INACTIVE_ONLY = "inactive"
+const EVERY_PRICE = "every-price"
+
+const PRICE_FILTERS = [
+  { value: EVERY_PRICE, label: "Every price" },
+  { value: "under-500", label: "Under ৳500" },
+  { value: "500-999", label: "৳500 – ৳999" },
+  { value: "1000-1999", label: "৳1,000 – ৳1,999" },
+  { value: "2000-plus", label: "৳2,000+" },
+] as const
+
+function matchesPrice(amount: number, filter: string) {
+  if (filter === EVERY_PRICE) return true
+  if (filter === "under-500") return amount < 500
+  if (filter === "500-999") return amount >= 500 && amount < 1000
+  if (filter === "1000-1999") return amount >= 1000 && amount < 2000
+  if (filter === "2000-plus") return amount >= 2000
+  return true
+}
+
 const emptyForm = (): FormState => ({
   title: "",
   description: "",
@@ -72,19 +102,97 @@ export default function AdminServices() {
   const categories = categoriesQuery.data ?? []
 
   const [q, setQ] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState(EVERY_CATEGORY)
+  const [tagFilter, setTagFilter] = useState(EVERY_TAG)
+  const [featuredFilter, setFeaturedFilter] = useState(EVERY_FEATURED)
+  const [statusFilter, setStatusFilter] = useState(EVERY_STATUS)
+  const [priceFilter, setPriceFilter] = useState(EVERY_PRICE)
   const [form, setForm] = useState<FormState>(emptyForm)
   const [mode, setMode] = useState<"add" | "edit" | null>(null)
   const [editId, setEditId] = useState<string | null>(null)
   const [deleteSvc, setDeleteSvc] = useState<Service | null>(null)
-  const revealRef = useReveal([servicesQuery.isFetching, mode])
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  const revealRef = useReveal([
+    servicesQuery.isFetching,
+    mode,
+    categoryFilter,
+    tagFilter,
+    featuredFilter,
+    statusFilter,
+    priceFilter,
+  ])
+
+  const durations = useMemo(() => {
+    const set = new Set<string>()
+    for (const s of services) {
+      const dur = s.dur?.trim()
+      if (dur) set.add(dur)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [services])
+
+  const [durationFilter, setDurationFilter] = useState("every-duration")
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase()
-    if (!query) return services
-    return services.filter((s) =>
-      `${s.title} ${s.catName} ${s.desc}`.toLowerCase().includes(query)
-    )
-  }, [services, q])
+    return services.filter((s) => {
+      if (categoryFilter !== EVERY_CATEGORY && s.cat !== categoryFilter) {
+        return false
+      }
+      if (tagFilter === NO_TAG && s.tag) return false
+      if (
+        tagFilter !== EVERY_TAG &&
+        tagFilter !== NO_TAG &&
+        s.tag !== tagFilter
+      ) {
+        return false
+      }
+      if (featuredFilter === FEATURED_ONLY && !s.isFeatured) return false
+      if (featuredFilter === NOT_FEATURED && s.isFeatured) return false
+      const active = s.isActive !== false
+      if (statusFilter === ACTIVE_ONLY && !active) return false
+      if (statusFilter === INACTIVE_ONLY && active) return false
+      if (!matchesPrice(s.price, priceFilter)) return false
+      if (
+        durationFilter !== "every-duration" &&
+        (s.dur || "").trim() !== durationFilter
+      ) {
+        return false
+      }
+      if (!query) return true
+      return `${s.title} ${s.catName} ${s.desc} ${s.tag || ""} ${s.dur}`
+        .toLowerCase()
+        .includes(query)
+    })
+  }, [
+    services,
+    q,
+    categoryFilter,
+    tagFilter,
+    featuredFilter,
+    statusFilter,
+    priceFilter,
+    durationFilter,
+  ])
+
+  const hasActiveFilters =
+    Boolean(q.trim()) ||
+    categoryFilter !== EVERY_CATEGORY ||
+    tagFilter !== EVERY_TAG ||
+    featuredFilter !== EVERY_FEATURED ||
+    statusFilter !== EVERY_STATUS ||
+    priceFilter !== EVERY_PRICE ||
+    durationFilter !== "every-duration"
+
+  const clearFilters = () => {
+    setQ("")
+    setCategoryFilter(EVERY_CATEGORY)
+    setTagFilter(EVERY_TAG)
+    setFeaturedFilter(EVERY_FEATURED)
+    setStatusFilter(EVERY_STATUS)
+    setPriceFilter(EVERY_PRICE)
+    setDurationFilter("every-duration")
+  }
 
   const openAdd = () => {
     setForm({
@@ -155,6 +263,27 @@ export default function AdminServices() {
     }
   }
 
+  const toggleActive = async (service: Service, active: boolean) => {
+    if (togglingId) return
+    setTogglingId(service.id)
+    try {
+      await updateMutation.mutateAsync({
+        id: service.id,
+        input: { isActive: active },
+      })
+      pushToast(
+        active ? "Service active" : "Service inactive",
+        active
+          ? `${service.title} is available to customers.`
+          : `${service.title} is hidden from the catalogue.`
+      )
+    } catch (error) {
+      pushToast("Update failed", getAdminServiceErrorMessage(error), "error")
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
   const saving = createMutation.isPending || updateMutation.isPending
 
   return (
@@ -186,33 +315,136 @@ export default function AdminServices() {
         <div className="stat-row">
           <StatCard
             icon={<WrenchIcon size={18} />}
-            value={services.length}
+            value={filtered.length}
             label="Services"
-            delta="From /services"
+            delta={
+              hasActiveFilters
+                ? `Of ${services.length} total`
+                : "Matching filters"
+            }
             delay={0}
             animate={!servicesQuery.isLoading}
           />
           <StatCard
             icon={<WrenchIcon size={18} />}
-            value={services.filter((s) => s.isFeatured).length}
+            value={filtered.filter((s) => s.isFeatured).length}
             label="Featured"
-            delta="Homepage"
+            delta="In current filter"
             variant="sky"
             delay={55}
+            animate={!servicesQuery.isLoading}
+          />
+          <StatCard
+            icon={<WrenchIcon size={18} />}
+            value={filtered.filter((s) => s.isActive !== false).length}
+            label="Active"
+            delta="In current filter"
+            variant="signal"
+            delay={110}
+            animate={!servicesQuery.isLoading}
+          />
+          <StatCard
+            icon={<WrenchIcon size={18} />}
+            value={filtered.filter((s) => s.isActive === false).length}
+            label="Inactive"
+            delta="In current filter"
+            variant="flare"
+            delay={165}
             animate={!servicesQuery.isLoading}
           />
         </div>
 
         <section className="dash-card" style={{ marginTop: 14 }}>
-          <label className="dash-search" style={{ maxWidth: 360, marginBottom: 14 }}>
-            <SearchIcon size={16} />
-            <input
-              className="dash-input"
-              placeholder="Search services"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
+          <div className="admin-filters admin-filters--services">
+            <label className="dash-search">
+              <SearchIcon size={16} />
+              <input
+                className="dash-input"
+                placeholder="Search title, category, tag…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+            <BrowseSelect
+              aria-label="Filter by category"
+              value={categoryFilter}
+              onValueChange={setCategoryFilter}
+              searchable
+              searchPlaceholder="Search category…"
+              placeholder="Every category"
+              options={[
+                { value: EVERY_CATEGORY, label: "Every category" },
+                ...categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  keywords: c.slug,
+                })),
+              ]}
             />
-          </label>
+            <BrowseSelect
+              aria-label="Filter by tag"
+              value={tagFilter}
+              onValueChange={setTagFilter}
+              options={[
+                { value: EVERY_TAG, label: "Every tag" },
+                { value: NO_TAG, label: "No tag" },
+                ...SERVICE_TAG_OPTIONS.map((t) => ({
+                  value: t.value,
+                  label: t.label,
+                })),
+              ]}
+            />
+            <BrowseSelect
+              aria-label="Filter by featured"
+              value={featuredFilter}
+              onValueChange={setFeaturedFilter}
+              options={[
+                { value: EVERY_FEATURED, label: "Featured: all" },
+                { value: FEATURED_ONLY, label: "Featured only" },
+                { value: NOT_FEATURED, label: "Not featured" },
+              ]}
+            />
+            <BrowseSelect
+              aria-label="Filter by status"
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+              options={[
+                { value: EVERY_STATUS, label: "Status: all" },
+                { value: ACTIVE_ONLY, label: "Active" },
+                { value: INACTIVE_ONLY, label: "Inactive" },
+              ]}
+            />
+            <BrowseSelect
+              aria-label="Filter by price"
+              value={priceFilter}
+              onValueChange={setPriceFilter}
+              options={PRICE_FILTERS.map((p) => ({
+                value: p.value,
+                label: p.label,
+              }))}
+            />
+            <BrowseSelect
+              aria-label="Filter by duration"
+              value={durationFilter}
+              onValueChange={setDurationFilter}
+              searchable={durations.length > 6}
+              searchPlaceholder="Search duration…"
+              placeholder="Every duration"
+              options={[
+                { value: "every-duration", label: "Every duration" },
+                ...durations.map((d) => ({ value: d, label: d })),
+              ]}
+            />
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                className="dash-btn dash-btn--ghost"
+                onClick={clearFilters}
+              >
+                Clear filters
+              </button>
+            ) : null}
+          </div>
 
           {servicesQuery.isLoading ? (
             Array.from({ length: 4 }).map((_, i) => (
@@ -232,8 +464,21 @@ export default function AdminServices() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="dash-empty">
-              <h3>No services</h3>
-              <p>Add a service to populate the catalogue.</p>
+              <h3>No services match</h3>
+              <p>
+                {hasActiveFilters
+                  ? "Try clearing filters or adjusting search."
+                  : "Add a service to populate the catalogue."}
+              </p>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  className="dash-btn dash-btn--ghost"
+                  onClick={clearFilters}
+                >
+                  Clear filters
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className="table-wrap table-wrap--scroll">
@@ -245,7 +490,9 @@ export default function AdminServices() {
                       <th>Category</th>
                       <th>Price</th>
                       <th>Duration</th>
+                      <th>Tag</th>
                       <th>Featured</th>
+                      <th>Status</th>
                       <th />
                     </tr>
                   </thead>
@@ -279,34 +526,52 @@ export default function AdminServices() {
                             </span>
                             <div>
                               <strong>{s.title}</strong>
-                              {s.tag ? (
-                                <div className="mono-muted">
-                                  {formatServiceTag(s.tag)}
-                                </div>
-                              ) : null}
                             </div>
                           </div>
                         </td>
                         <td>{s.catName}</td>
                         <td>{formatTaka(s.price)}</td>
                         <td className="mono-muted">{s.dur}</td>
+                        <td className="mono-muted">
+                          {s.tag ? formatServiceTag(s.tag) : "—"}
+                        </td>
                         <td>{s.isFeatured ? "Yes" : "—"}</td>
                         <td>
-                          <div style={{ display: "flex", gap: 6 }}>
+                          <label className="dash-switch">
+                            <input
+                              type="checkbox"
+                              checked={s.isActive !== false}
+                              disabled={togglingId === s.id}
+                              aria-label={
+                                s.isActive !== false
+                                  ? `Deactivate ${s.title}`
+                                  : `Activate ${s.title}`
+                              }
+                              onChange={(e) =>
+                                void toggleActive(s, e.target.checked)
+                              }
+                            />
+                            <span />
+                          </label>
+                        </td>
+                        <td>
+                          <div className="row-actions">
                             <button
                               type="button"
-                              className="dash-btn dash-btn--ghost dash-btn--sm"
+                              className="dash-icon-btn"
+                              aria-label={`Edit ${s.title}`}
+                              title="Edit"
                               onClick={() => openEdit(s)}
                             >
-                              Edit
+                              <SquarePenIcon size={16} />
                             </button>
                             <button
                               type="button"
-                              className="dash-btn dash-btn--ghost dash-btn--sm"
+                              className="dash-icon-btn"
                               onClick={() => setDeleteSvc(s)}
                               aria-label={`Delete ${s.title}`}
                             >
-                              <Trash2Icon size={14} />
+                              <Trash2Icon size={16} />
                             </button>
                           </div>
                         </td>
@@ -314,6 +579,11 @@ export default function AdminServices() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="table-foot">
+                <span>
+                  Showing {filtered.length} of {services.length} services
+                </span>
               </div>
             </div>
           )}
@@ -371,7 +641,7 @@ export default function AdminServices() {
               required
             />
           </label>
-          <label className="dash-field">
+          <div className="dash-field">
             <span>Category</span>
             {categories.length === 0 ? (
               <p className="service-form__hint">
@@ -380,25 +650,24 @@ export default function AdminServices() {
                   : "No categories yet. Create one under Admin → Categories first."}
               </p>
             ) : (
-              <select
-                className="dash-input"
-                value={form.categoryId}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, categoryId: e.target.value }))
+              <BrowseSelect
+                aria-label="Service category"
+                value={form.categoryId || ""}
+                onValueChange={(value) =>
+                  setForm((f) => ({ ...f, categoryId: value }))
                 }
-                required
-              >
-                <option value="" disabled>
-                  Select a category
-                </option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                searchable
+                searchPlaceholder="Search category…"
+                placeholder="Select a category"
+                className="service-form__select"
+                options={categories.map((c) => ({
+                  value: c.id,
+                  label: c.name,
+                  keywords: c.slug,
+                }))}
+              />
             )}
-          </label>
+          </div>
           <label className="dash-field">
             <span>Price (৳)</span>
             <input
@@ -474,21 +743,6 @@ export default function AdminServices() {
                 }}
               />
             </div>
-          </label>
-          <label className="dash-field">
-            <span>Tag</span>
-            <select
-              className="dash-input"
-              value={form.tag}
-              onChange={(e) => setForm((f) => ({ ...f, tag: e.target.value }))}
-            >
-              <option value="">No tag</option>
-              {SERVICE_TAG_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
           </label>
           <label className="dash-check">
             <input

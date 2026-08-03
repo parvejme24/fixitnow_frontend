@@ -7,6 +7,7 @@ import {
   BoxIcon,
   CheckIcon,
   LoaderCircleIcon,
+  SquarePenIcon,
   SearchIcon,
   TagIcon,
   Trash2Icon,
@@ -432,10 +433,12 @@ export default function AdminCategories() {
                 <div className="cat-card__foot">
                   <button
                     type="button"
-                    className="dash-btn dash-btn--ghost dash-btn--sm"
+                    className="dash-icon-btn"
+                    aria-label={`Edit ${c.name}`}
+                    title="Edit"
                     onClick={() => openEdit(c)}
                   >
-                    Edit
+                    <SquarePenIcon size={16} />
                   </button>
                   <button
                     type="button"
@@ -501,10 +504,12 @@ export default function AdminCategories() {
                       <div className="row-actions">
                         <button
                           type="button"
-                          className="dash-btn dash-btn--ghost dash-btn--sm"
+                          className="dash-icon-btn"
+                          aria-label={`Edit ${c.name}`}
+                          title="Edit"
                           onClick={() => openEdit(c)}
                         >
-                          Edit
+                          <SquarePenIcon size={16} />
                         </button>
                         <button
                           type="button"

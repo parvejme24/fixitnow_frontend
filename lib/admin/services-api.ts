@@ -66,7 +66,10 @@ function appendServiceFields(
   }
 }
 
-/** Admin: list services (API max limit is 100). */
+/** Admin: list services (API max limit is 100).
+ * Note: public `GET /services` only returns active rows. Callers should merge
+ * any locally known inactive services after fetch.
+ */
 export async function fetchAdminServices(token: string) {
   const all: Service[] = []
   let page = 1
@@ -94,6 +97,21 @@ export async function fetchAdminServices(token: string) {
     seen.add(s.id)
     return true
   })
+}
+
+/** Keep inactive services that the public list endpoint omits. */
+export function mergeAdminServicesWithInactive(
+  fresh: Service[],
+  previous?: Service[] | null
+) {
+  const byId = new Map(fresh.map((s) => [s.id, s] as const))
+  for (const s of previous ?? []) {
+    if (!s.id) continue
+    if (s.isActive === false && !byId.has(s.id)) {
+      byId.set(s.id, s)
+    }
+  }
+  return Array.from(byId.values())
 }
 
 /** Admin: create a service (JSON or multipart when image is set). */

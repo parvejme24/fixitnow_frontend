@@ -28,7 +28,14 @@ function num(value: unknown, fallback = 0) {
 }
 
 function bool(value: unknown, fallback = false) {
-  return typeof value === "boolean" ? value : fallback
+  if (typeof value === "boolean") return value
+  if (typeof value === "number" && Number.isFinite(value)) return value !== 0
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    if (["true", "1", "yes", "on"].includes(normalized)) return true
+    if (["false", "0", "no", "off"].includes(normalized)) return false
+  }
+  return fallback
 }
 
 function pickString(...values: unknown[]) {
